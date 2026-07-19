@@ -78,8 +78,10 @@ class BareWorkerCommand extends LocalEventEmitter {
 const appWindow = getCurrentWindow();
 const app = document.querySelector("#app");
 const WINDOW_SIZE_KEY = "togather.window-size.v1";
+const WINDOW_POSITION_KEY = "togather.window-position.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const DISPLAY_NAME_KEY = "togather.display-name.v1";
+const ONBOARDING_WINDOW_HEIGHT = 620;
 const JOIN_WAIT_TIMEOUT_MS = 20000;
 const IDLE_AFTER_MS = 3 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 5000;
@@ -896,6 +898,7 @@ function setConnection(connected) {
   state.connected = connected;
   document.body.classList.toggle("joined-transparent", connected);
   if (connected) {
+    applySavedWindowPlacementForJoined();
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
     state.joiningRoom = false;
@@ -1174,6 +1177,25 @@ function readSavedWindowSize() {
   return null;
 }
 
+function readSavedWindowPosition() {
+  try {
+    const raw = localStorage.getItem(WINDOW_POSITION_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+      return {
+        x: Math.round(parsed.x),
+        y: Math.round(parsed.y),
+      };
+    }
+  } catch {
+    // Ignore corrupt localStorage values.
+  }
+
+  return null;
+}
+
 function saveWindowSize(size) {
   try {
     localStorage.setItem(
@@ -1185,10 +1207,46 @@ function saveWindowSize(size) {
   }
 }
 
+function saveWindowPosition(position) {
+  try {
+    localStorage.setItem(
+      WINDOW_POSITION_KEY,
+      JSON.stringify({ x: position.x, y: position.y }),
+    );
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function applySavedWindowPlacementForJoined() {
+  const savedSize = readSavedWindowSize();
+  const savedPosition = readSavedWindowPosition();
+
+  if (savedSize) {
+    appWindow
+      .setSize(new PhysicalSize(savedSize.width, savedSize.height))
+      .catch(() => {});
+  }
+
+  if (savedPosition) {
+    appWindow
+      .setPosition(new PhysicalPosition(savedPosition.x, savedPosition.y))
+      .catch(() => {});
+  }
+}
+
 function enableWindowPositionPersistence() {
   appWindow
     .onResized(({ payload: size }) => {
+      if (!state.connected) return;
       saveWindowSize(size);
+    })
+    .catch(() => {});
+
+  appWindow
+    .onMoved(({ payload: position }) => {
+      if (!state.connected) return;
+      saveWindowPosition(position);
     })
     .catch(() => {});
 }
@@ -1199,12 +1257,10 @@ function centerWindowOnLaunch() {
     .then(async (monitor) => {
       if (!monitor) return;
 
-      const savedSize = readSavedWindowSize();
-      if (savedSize) {
-        await appWindow.setSize(
-          new PhysicalSize(savedSize.width, savedSize.height),
-        );
-      }
+      const currentSize = await appWindow.outerSize();
+      await appWindow.setSize(
+        new PhysicalSize(currentSize.width, ONBOARDING_WINDOW_HEIGHT),
+      );
 
       const size = await appWindow.outerSize();
       await appWindow.setPosition(
