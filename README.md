@@ -1,6 +1,6 @@
 # togather
 
-A small, serverless desktop telepresence widget for two people. The native
+A small, serverless desktop telepresence widget for two or more people. The native
 shell is Tauri v2, the peer worker runs under Bare, and discovery/connections
 use Hyperswarm.
 
