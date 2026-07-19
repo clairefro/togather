@@ -5,8 +5,7 @@ import Hyperswarm from "hyperswarm";
 
 const PRESENCE_STATES = new Set(["online", "away", "typing"]);
 const MAX_CHAT_LENGTH = 2_000;
-const ALPHANUMERIC =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
   "ancient",
   "brave",

@@ -77,7 +77,9 @@ class BareWorkerCommand extends LocalEventEmitter {
 
 const appWindow = getCurrentWindow();
 const app = document.querySelector("#app");
-const WINDOW_POSITION_KEY = "pair-presence.window-position.v1";
+const WINDOW_SIZE_KEY = "pair-presence.window-size.v1";
+const LAST_ROOM_CODE_KEY = "pair-presence.last-room-code.v1";
+const JOIN_WAIT_TIMEOUT_MS = 20000;
 const state = {
   connected: false,
   partnerPresence: "offline",
@@ -90,6 +92,7 @@ const state = {
   buffer: "",
   listeners: new Set(),
   typingTimer: null,
+  joinWaitTimer: null,
   startingPromise: null,
 };
 
@@ -255,6 +258,31 @@ function escapeHtml(text) {
   return el.innerHTML;
 }
 
+function readLastRoomCode() {
+  try {
+    const value = localStorage.getItem(LAST_ROOM_CODE_KEY);
+    if (typeof value === "string") {
+      const code = value.trim();
+      if (code) return code;
+    }
+  } catch {
+    // Ignore localStorage read failures.
+  }
+
+  return "";
+}
+
+function saveLastRoomCode(code) {
+  const normalized = typeof code === "string" ? code.trim() : "";
+  if (!normalized) return;
+
+  try {
+    localStorage.setItem(LAST_ROOM_CODE_KEY, normalized);
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
 function bindDragHandle() {
   const dragBar = app.querySelector(".drag-bar");
   const widget = app.querySelector(".widget");
@@ -355,16 +383,19 @@ function bindResizeHandle() {
 
 function renderOnboarding(mode = "choose") {
   state.inviteCode = "";
-  if (mode === "choose") state.joiningRoom = false;
+  if (mode === "choose") {
+    state.joiningRoom = false;
+    clearTimeout(state.joinWaitTimer);
+    state.joinWaitTimer = null;
+  }
   document.body.classList.remove("joined-transparent");
   const creatingLabel = state.creatingRoom
     ? "Creating room..."
     : "Create a room";
   const joiningLabel = state.joiningRoom ? "Joining room..." : "Connect";
   const chooseContent = `<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button><button class="quiet" data-action="enter-code" ${state.creatingRoom ? "disabled" : ""}>I have a code</button>${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
-  const joinContent =
-    `<label class="field-label" for="invite-code">Room code</label><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Be here, together.</h1><p class="muted">A private, direct connection for just the two of you.</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Be here, together</h1><p class="muted">A private, direct connection you and friends</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
@@ -378,12 +409,42 @@ function renderOnboarding(mode = "choose") {
     .querySelector('[data-action="join"]')
     ?.addEventListener("click", joinPairing);
   app
+    .querySelector('[data-action="clear-code"]')
+    ?.addEventListener("click", () => {
+      const input = app.querySelector("#invite-code");
+      const clearButton = app.querySelector('[data-action="clear-code"]');
+      if (!input) return;
+
+      input.value = "";
+      input.focus();
+      if (clearButton) clearButton.hidden = true;
+      clearError();
+    });
+  app
     .querySelector('[data-action="minimize"]')
     ?.addEventListener("click", minimizeApp);
   app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
   app.querySelector("#invite-code")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter") joinPairing();
   });
+  app.querySelector("#invite-code")?.addEventListener("input", () => {
+    const input = app.querySelector("#invite-code");
+    const clearButton = app.querySelector('[data-action="clear-code"]');
+    if (input && clearButton) clearButton.hidden = !input.value;
+  });
+
+  if (mode === "join") {
+    const lastRoomCode = readLastRoomCode();
+    const input = app.querySelector("#invite-code");
+    const clearButton = app.querySelector('[data-action="clear-code"]');
+    if (input && lastRoomCode) {
+      input.value = lastRoomCode;
+      input.setSelectionRange(lastRoomCode.length, lastRoomCode.length);
+    }
+
+    if (input && clearButton) clearButton.hidden = !input.value;
+  }
+
   bindDragHandle();
   bindResizeHandle();
 }
@@ -391,7 +452,7 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this once</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code">${state.inviteCode}</div><button class="primary" data-action="copy">Copy code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code">${state.inviteCode}</div><button class="primary" data-action="copy">Copy code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="copy"]')
     .addEventListener("click", async () => {
@@ -441,6 +502,8 @@ function renderWidget() {
 
 async function resetPairing() {
   clearError();
+  clearTimeout(state.joinWaitTimer);
+  state.joinWaitTimer = null;
   try {
     await bridge.send({ type: "leave" });
   } catch {
@@ -493,8 +556,11 @@ async function joinPairing() {
   clearError();
   const code = app.querySelector("#invite-code").value.trim();
   if (!code) return showError("Enter a room code.");
+  saveLastRoomCode(code);
 
   state.joiningRoom = true;
+  clearTimeout(state.joinWaitTimer);
+  state.joinWaitTimer = null;
   const joinButton = app.querySelector('[data-action="join"]');
   if (joinButton) {
     joinButton.disabled = true;
@@ -503,8 +569,23 @@ async function joinPairing() {
 
   try {
     await bridge.send({ type: "join-pairing", code });
+
+    state.joinWaitTimer = setTimeout(() => {
+      if (state.connected) return;
+
+      state.joiningRoom = false;
+      const currentJoinButton = app.querySelector('[data-action="join"]');
+      if (currentJoinButton) {
+        currentJoinButton.disabled = false;
+        currentJoinButton.textContent = "Connect";
+      }
+
+      showError("Join timed out - room may not exist. Try again");
+    }, JOIN_WAIT_TIMEOUT_MS);
   } catch (error) {
     state.joiningRoom = false;
+    clearTimeout(state.joinWaitTimer);
+    state.joinWaitTimer = null;
     if (joinButton) {
       joinButton.disabled = false;
       joinButton.textContent = "Connect";
@@ -516,6 +597,8 @@ function setConnection(connected) {
   state.connected = connected;
   document.body.classList.toggle("joined-transparent", connected);
   if (connected) {
+    clearTimeout(state.joinWaitTimer);
+    state.joinWaitTimer = null;
     state.joiningRoom = false;
     state.partnerPresence = "online";
     renderWidget();
@@ -583,14 +666,21 @@ function announceTyping() {
   state.typingTimer = setTimeout(() => sendPresence("online"), 1500);
 }
 
-function readSavedWindowPosition() {
+function readSavedWindowSize() {
   try {
-    const raw = localStorage.getItem(WINDOW_POSITION_KEY);
+    const raw = localStorage.getItem(WINDOW_SIZE_KEY);
     if (!raw) return null;
 
     const parsed = JSON.parse(raw);
-    if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-      return { x: Math.round(parsed.x), y: Math.round(parsed.y) };
+    if (
+      parsed &&
+      Number.isFinite(parsed.width) &&
+      Number.isFinite(parsed.height)
+    ) {
+      return {
+        width: Math.round(parsed.width),
+        height: Math.round(parsed.height),
+      };
     }
   } catch {
     // Ignore corrupt localStorage values.
@@ -599,11 +689,11 @@ function readSavedWindowPosition() {
   return null;
 }
 
-function saveWindowPosition(position) {
+function saveWindowSize(size) {
   try {
     localStorage.setItem(
-      WINDOW_POSITION_KEY,
-      JSON.stringify({ x: position.x, y: position.y }),
+      WINDOW_SIZE_KEY,
+      JSON.stringify({ width: size.width, height: size.height }),
     );
   } catch {
     // Ignore persistence failures.
@@ -612,32 +702,36 @@ function saveWindowPosition(position) {
 
 function enableWindowPositionPersistence() {
   appWindow
-    .onMoved(({ payload: position }) => {
-      saveWindowPosition(position);
+    .onResized(({ payload: size }) => {
+      saveWindowSize(size);
     })
     .catch(() => {});
 }
 
-function positionWindow() {
+function centerWindowOnLaunch() {
   appWindow
     .currentMonitor()
     .then(async (monitor) => {
       if (!monitor) return;
 
-      const savedPosition = readSavedWindowPosition();
-      if (savedPosition) {
-        await appWindow.setPosition(
-          new PhysicalPosition(savedPosition.x, savedPosition.y),
-        );
-      } else {
-        const size = await appWindow.outerSize();
-        await appWindow.setPosition(
-          new PhysicalPosition(
-            monitor.position.x + monitor.size.width - size.width - 24,
-            monitor.position.y + monitor.size.height - size.height - 28,
-          ),
+      const savedSize = readSavedWindowSize();
+      if (savedSize) {
+        await appWindow.setSize(
+          new PhysicalSize(savedSize.width, savedSize.height),
         );
       }
+
+      const size = await appWindow.outerSize();
+      await appWindow.setPosition(
+        new PhysicalPosition(
+          Math.round(
+            monitor.position.x + (monitor.size.width - size.width) / 2,
+          ),
+          Math.round(
+            monitor.position.y + (monitor.size.height - size.height) / 2,
+          ),
+        ),
+      );
 
       await appWindow.setAlwaysOnTop(true);
       if (navigator.userAgent.includes("Macintosh"))
@@ -657,6 +751,7 @@ function triggerPrimaryAction() {
 bridge.onEvent((event) => {
   if (event.type === "invite") {
     state.inviteCode = event.code;
+    saveLastRoomCode(event.code);
     renderInvite();
   } else if (event.type === "peer-status") setConnection(event.connected);
   else if (event.type === "presence") {
@@ -666,6 +761,8 @@ bridge.onEvent((event) => {
     state.messages.push(event);
     renderMessages();
   } else if (event.type === "error") {
+    clearTimeout(state.joinWaitTimer);
+    state.joinWaitTimer = null;
     state.joiningRoom = false;
     const joinButton = app.querySelector('[data-action="join"]');
     if (joinButton) {
@@ -701,7 +798,7 @@ window.addEventListener("keydown", (event) => {
   triggerPrimaryAction();
 });
 renderOnboarding();
-positionWindow();
+centerWindowOnLaunch();
 enableWindowPositionPersistence();
 bridge
   .start()
