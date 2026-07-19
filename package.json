@@ -1,8 +1,8 @@
 {
-  "name": "pair-presence",
+  "name": "togather",
   "version": "0.1.0",
-  "private": true,
-  "description": "A peer-to-peer telepresence widget for two people.",
+  "author": "Claire Froelich",
+  "description": "Peer-to-peer telepresence widget",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",

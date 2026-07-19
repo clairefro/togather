@@ -1,5 +1,5 @@
 {
-  "name": "pair-presence-worker",
+  "name": "togather-worker",
   "private": true,
   "type": "module",
   "dependencies": {

@@ -1,8 +1,8 @@
 [package]
-name = "pair-presence"
+name = "togather"
 version = "0.1.0"
-description = "A peer-to-peer telepresence widget for two people"
-authors = ["Pair Presence"]
+description = "Peer-to-peer telepresence widget"
+authors = ["Claire Froelich"]
 edition = "2021"
 
 [build-dependencies]

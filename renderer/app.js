@@ -77,8 +77,8 @@ class BareWorkerCommand extends LocalEventEmitter {
 
 const appWindow = getCurrentWindow();
 const app = document.querySelector("#app");
-const WINDOW_SIZE_KEY = "pair-presence.window-size.v1";
-const LAST_ROOM_CODE_KEY = "pair-presence.last-room-code.v1";
+const WINDOW_SIZE_KEY = "togather.window-size.v1";
+const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const JOIN_WAIT_TIMEOUT_MS = 20000;
 const state = {
   connected: false,
@@ -395,7 +395,7 @@ function renderOnboarding(mode = "choose") {
   const joiningLabel = state.joiningRoom ? "Joining room..." : "Connect";
   const chooseContent = `<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button><button class="quiet" data-action="enter-code" ${state.creatingRoom ? "disabled" : ""}>I have a code</button>${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Be here, together</h1><p class="muted">A private, direct connection you and friends</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
