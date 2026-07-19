@@ -1,4 +1,4 @@
-# Pair Presence
+# togather
 
 A small, serverless desktop telepresence widget for two people. The native
 shell is Tauri v2, the peer worker runs under Bare, and discovery/connections

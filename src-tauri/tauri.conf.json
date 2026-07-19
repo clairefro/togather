@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pair Presence",
+  "productName": "togather",
   "version": "0.1.0",
   "identifier": "com.pairpresence.widget",
   "build": {
@@ -12,7 +12,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Pair Presence",
+        "title": "togather",
         "width": 220,
         "height": 380,
         "resizable": true,
