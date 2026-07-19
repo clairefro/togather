@@ -99,7 +99,10 @@ const state = {
   creatingRoom: false,
   joiningRoom: false,
   messages: [],
+  unreadChatCount: 0,
   clickThrough: false,
+  menuOpen: false,
+  chatOpen: false,
   child: null,
   buffer: "",
   listeners: new Set(),
@@ -471,7 +474,7 @@ function renderOnboarding(mode = "choose") {
   const joiningLabel = state.joiningRoom ? "Joining room..." : "Connect";
   const chooseContent = `<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button><button class="quiet" data-action="enter-code" ${state.creatingRoom ? "disabled" : ""}>I have a code</button>${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character away"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Open settings menu">...</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character away"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}>${state.connected ? `<div class="menu-section"><p class="menu-label">Room</p><p class="menu-value">${escapeHtml(currentRoomCode())}</p><p class="menu-meta">${activePeerCount()} ${activePeerCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" value="${escapeHtml(defaultDisplayName())}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div><div class="name-actions"><button type="button" class="quiet" data-action="cancel-name">Cancel</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
@@ -521,6 +524,8 @@ function renderOnboarding(mode = "choose") {
     if (input && clearButton) clearButton.hidden = !input.value;
   }
 
+  bindNameMenu();
+
   bindDragHandle();
   bindResizeHandle();
 }
@@ -542,6 +547,7 @@ function renderInvite() {
     .querySelector('[data-action="minimize"]')
     ?.addEventListener("click", minimizeApp);
   app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+
   bindDragHandle();
   bindResizeHandle();
 }
@@ -549,15 +555,15 @@ function renderInvite() {
 function label() {
   if (!state.connected) return "Waiting to connect";
 
-  const statusLabel = {
+  return {
     present: "Present",
     idle: "Idle",
     away: "Away",
   }[aggregatePeerPresence()];
+}
 
-  const count = activePeerCount();
-  const peerLabel = count === 1 ? "peer" : "peers";
-  return `${statusLabel} · ${count} ${peerLabel}`;
+function currentRoomCode() {
+  return state.inviteCode || readLastRoomCode() || "Unknown room";
 }
 
 function peerDisplayName(peerId) {
@@ -566,51 +572,114 @@ function peerDisplayName(peerId) {
   return `Peer ${peerShortId(peerId)}`;
 }
 
-function renderWidget() {
-  const aggregate = aggregatePeerPresence();
-  const peerItems = activePeerIds()
-    .sort((a, b) => peerDisplayName(a).localeCompare(peerDisplayName(b)))
-    .map((peerId) => {
-      const peer = state.peers.get(peerId);
-      const presence = peer?.presence ?? "away";
-      const caption = peer?.displayName || peerShortId(peerId);
+function hashToHue(value) {
+  const input = typeof value === "string" ? value : "";
+  let hash = 0;
 
-      return `<div class="peer-card ${presence}"><div class="character ${presence}"><svg viewBox="0 0 90 90"><circle class="orb" cx="45" cy="45" r="31"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path class="smile" d="M31 57 Q45 65 59 57"/></svg></div><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div></div>`;
-    })
-    .join("");
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) >>> 0;
+  }
 
-  if (state.connected) document.body.classList.add("joined-transparent");
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="set-name" aria-label="Set display name">✎</button><button class="icon-button" data-action="click-through" aria-label="Toggle click-through">${state.clickThrough ? "◎" : "◉"}</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="presence-body"><div class="status"><span class="status-dot"></span><span>${label()}</span></div><div class="peer-strip">${peerItems || '<p class="peer-empty">No peers connected yet.</p>'}</div></div><footer><button class="chat-button" data-action="chat">⌁ Chat <b>${state.messages.length || ""}</b></button></footer><aside class="name-popover" hidden><form class="name-form"><label for="display-name-input">Display name</label><input id="display-name-input" maxlength="40" placeholder="Your name" autocomplete="off" value="${escapeHtml(state.displayName)}"><div class="name-actions"><button type="button" class="quiet" data-action="cancel-name">Cancel</button><button type="submit" class="primary">Save</button></div></form></aside><aside class="chat-popover" hidden><div class="chat-header"><span>Little notes</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
-  app
-    .querySelector('[data-action="set-name"]')
-    .addEventListener("click", () => {
-      const popover = app.querySelector(".name-popover");
-      const input = app.querySelector("#display-name-input");
-      if (!popover || !input) return;
+  return hash % 360;
+}
 
-      popover.hidden = !popover.hidden;
-      if (!popover.hidden) {
-        input.focus();
-        input.setSelectionRange(input.value.length, input.value.length);
-      }
-    });
+function chatNameColor(key) {
+  return `hsl(${hashToHue(key)}, 72%, 68%)`;
+}
+
+function chatDisplayName(message) {
+  if (message.from === "self") {
+    return state.displayName || peerShortId(state.selfPeerId) || "you";
+  }
+
+  return message.displayName || `Peer ${peerShortId(message.peer)}`;
+}
+
+function formatChatTime(timestamp) {
+  const date = new Date(
+    typeof timestamp === "number" && Number.isFinite(timestamp)
+      ? timestamp
+      : Date.now(),
+  );
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `[${hh}:${mm}]`;
+}
+
+function escapeAttribute(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+}
+
+function pushChatNotice(text) {
+  pushUnreadChatEntry({ kind: "notice", text, ts: Date.now() }, false);
+}
+
+function pushUnreadChatEntry(entry, countUnread = true) {
+  state.messages.push(entry);
+  if (countUnread && !state.chatOpen) {
+    state.unreadChatCount += 1;
+  }
+}
+
+function pushPeerNotice(action, peerId, countUnread = false) {
+  pushUnreadChatEntry(
+    { kind: "notice", action, peerId, ts: Date.now() },
+    countUnread,
+  );
+}
+
+function defaultDisplayName() {
+  return state.displayName || peerShortId(state.selfPeerId) || "peer";
+}
+
+function nameEditorPlaceholder() {
+  return peerShortId(state.selfPeerId) || "peer";
+}
+
+function syncNameEditorControls() {
+  const input = app.querySelector("#display-name-input");
+  const saveButton = app.querySelector('[data-action="save-name"]');
+  if (!input || !saveButton) return;
+
+  const isDirty = normalizeDisplayName(input.value) !== state.displayName;
+  saveButton.hidden = !isDirty;
+  saveButton.disabled = !isDirty;
+}
+
+function bindNameMenu() {
+  app.querySelector('[data-action="menu"]')?.addEventListener("click", () => {
+    const popover = app.querySelector(".menu-popover");
+    const input = app.querySelector("#display-name-input");
+    if (!popover || !input) return;
+
+    state.menuOpen = !state.menuOpen;
+    popover.hidden = !state.menuOpen;
+    if (state.menuOpen) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  });
+
   app
     .querySelector('[data-action="cancel-name"]')
-    .addEventListener("click", () => {
-      const popover = app.querySelector(".name-popover");
+    ?.addEventListener("click", () => {
+      const popover = app.querySelector(".menu-popover");
       const input = app.querySelector("#display-name-input");
       if (!popover || !input) return;
 
       input.value = state.displayName;
+      state.menuOpen = false;
       popover.hidden = true;
     });
+
   app.querySelector(".name-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const popover = app.querySelector(".name-popover");
+    const popover = app.querySelector(".menu-popover");
     const input = app.querySelector("#display-name-input");
     if (!popover || !input) return;
 
-    state.displayName = normalizeDisplayName(input.value);
+    state.displayName =
+      normalizeDisplayName(input.value) || defaultDisplayName();
     saveDisplayName(state.displayName);
 
     try {
@@ -618,12 +687,67 @@ function renderWidget() {
         type: "set-profile",
         displayName: state.displayName,
       });
+      state.menuOpen = false;
       popover.hidden = true;
-      renderWidget();
+      if (
+        app.querySelector(".main-widget") ||
+        app.querySelector(".onboarding")
+      ) {
+        renderWidget();
+      }
     } catch (error) {
       showError(error);
     }
   });
+
+  app
+    .querySelector("#display-name-input")
+    ?.addEventListener("input", syncNameEditorControls);
+  syncNameEditorControls();
+}
+
+function noticeText(message) {
+  if (message.peerId === state.selfPeerId) {
+    if (message.action === "joined") {
+      return "you joined the room";
+    }
+
+    if (message.action === "left") {
+      return "you left the room";
+    }
+  }
+
+  if (message.action === "joined") {
+    return `${peerDisplayName(message.peerId)} joined the room`;
+  }
+
+  if (message.action === "left") {
+    return `${peerDisplayName(message.peerId)} left the room`;
+  }
+
+  return message.text || "";
+}
+
+function renderWidget() {
+  const shouldRefocusChatInput =
+    state.chatOpen && document.activeElement?.matches(".chat-form input");
+
+  const aggregate = aggregatePeerPresence();
+  const peerItems = activePeerIds()
+    .sort((a, b) => peerDisplayName(a).localeCompare(peerDisplayName(b)))
+    .map((peerId) => {
+      const peer = state.peers.get(peerId);
+      const presence = peer?.presence ?? "away";
+      const caption = peer?.displayName || peerShortId(peerId);
+      const characterColor = chatNameColor(peerId);
+
+      return `<div class="peer-card ${presence}"><div class="character ${presence}" style="--character-color:${characterColor}"><svg viewBox="0 0 90 90"><circle class="orb" cx="45" cy="45" r="31"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path class="smile" d="M31 57 Q45 65 59 57"/></svg></div><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div></div>`;
+    })
+    .join("");
+
+  if (state.connected) document.body.classList.add("joined-transparent");
+  const peerCount = activePeerCount();
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="Open chat">✉${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="Open room menu">...</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty">No peers connected yet.</p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-section"><p class="menu-label">Room</p><p class="menu-value">${escapeHtml(currentRoomCode())}</p><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" value="${escapeHtml(defaultDisplayName())}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div><div class="name-actions"><button type="button" class="quiet" data-action="cancel-name">Cancel</button></div></form></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="chat"]')
     .addEventListener("click", toggleChat);
@@ -631,12 +755,17 @@ function renderWidget() {
     .querySelector('[data-action="close-chat"]')
     .addEventListener("click", toggleChat);
   app
-    .querySelector('[data-action="click-through"]')
-    .addEventListener("click", toggleClickThrough);
-  app
     .querySelector('[data-action="minimize"]')
     ?.addEventListener("click", minimizeApp);
   app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+
+  bindNameMenu();
+
+  if (state.chatOpen) renderMessages();
+  if (shouldRefocusChatInput) {
+    app.querySelector(".chat-form input")?.focus();
+  }
+
   bindDragHandle();
   bindResizeHandle();
 }
@@ -658,6 +787,9 @@ async function resetPairing() {
 
   state.connected = false;
   state.localPresence = "present";
+  state.menuOpen = false;
+  state.chatOpen = false;
+  state.unreadChatCount = 0;
   state.connectedPeers.clear();
   state.peers.clear();
   state.inviteCode = "";
@@ -720,6 +852,7 @@ async function joinPairing() {
   clearError();
   const code = app.querySelector("#invite-code").value.trim();
   if (!code) return showError("Enter a room code.");
+  state.inviteCode = code;
   saveLastRoomCode(code);
 
   state.joiningRoom = true;
@@ -766,6 +899,9 @@ function setConnection(connected) {
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
     state.joiningRoom = false;
+    if (state.selfPeerId) {
+      pushPeerNotice("joined", state.selfPeerId, false);
+    }
     renderWidget();
     markUserActive();
     startPresenceHeartbeat();
@@ -779,16 +915,20 @@ function setConnection(connected) {
     stopPresenceHeartbeat();
     stopPresenceWatchdog();
     stopSystemIdlePolling();
+    state.menuOpen = false;
+    state.chatOpen = false;
     state.connectedPeers.clear();
     renderWidget();
   }
 }
 function toggleChat() {
-  const popover = app.querySelector(".chat-popover");
-  popover.hidden = !popover.hidden;
-  if (!popover.hidden) {
-    renderMessages();
-    popover.querySelector("input").focus();
+  state.chatOpen = !state.chatOpen;
+  if (state.chatOpen) {
+    state.unreadChatCount = 0;
+  }
+  renderWidget();
+  if (state.chatOpen) {
+    app.querySelector(".chat-popover")?.querySelector("input")?.focus();
   }
 }
 function renderMessages() {
@@ -796,10 +936,22 @@ function renderMessages() {
   if (!log) return;
   log.innerHTML = state.messages.length
     ? state.messages
-        .map(
-          (message) =>
-            `<p class="message ${message.from}">${message.from === "peer" ? `<span class="sender">${escapeHtml(message.displayName || `Peer ${peerShortId(message.peer)}`)}:</span> ` : ""}${escapeHtml(message.text)}</p>`,
-        )
+        .map((message) => {
+          const when = formatChatTime(message.ts);
+          const title = escapeAttribute(when);
+
+          if (message.kind === "notice") {
+            return `<p class="message notice" title="${title}">${escapeHtml(noticeText(message))}</p>`;
+          }
+
+          const name = chatDisplayName(message);
+          const colorKey =
+            message.from === "self"
+              ? state.selfPeerId || `self:${name}`
+              : message.peer || name;
+
+          return `<p class="message chat-line" title="${title}"><span class="chat-bracket">&lt;</span><span class="sender" style="color:${chatNameColor(colorKey)}">${escapeHtml(name)}</span><span class="chat-sep">:</span> ${escapeHtml(message.text)} <span class="chat-bracket">&gt;</span></p>`;
+        })
         .join("")
     : '<p class="empty-chat">A little hello goes a long way.</p>';
   log.scrollTop = log.scrollHeight;
@@ -815,9 +967,11 @@ function renderMessages() {
         text,
         from: "self",
         displayName: state.displayName,
+        ts: Date.now(),
       });
       input.value = "";
       renderMessages();
+      app.querySelector(".chat-form input")?.focus();
       markUserActive();
     } catch (error) {
       showError(error);
@@ -1082,6 +1236,10 @@ function triggerPrimaryAction() {
 bridge.onEvent((event) => {
   if (event.type === "ready" && typeof event.publicKey === "string") {
     state.selfPeerId = event.publicKey;
+    if (!state.displayName || state.displayName === event.publicKey) {
+      state.displayName = peerShortId(event.publicKey);
+      saveDisplayName(state.displayName);
+    }
   } else if (event.type === "invite") {
     state.inviteCode = event.code;
     saveLastRoomCode(event.code);
@@ -1092,14 +1250,21 @@ bridge.onEvent((event) => {
     if (event.connected) {
       peer.lastSeenAt = Date.now();
       if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
+      if (event.peer !== state.selfPeerId) {
+        pushPeerNotice("joined", event.peer);
+      }
     } else {
       peer.presence = "away";
       peer.lastSeenAt = Date.now();
       state.connectedPeers.delete(event.peer);
+      if (event.peer !== state.selfPeerId) {
+        pushPeerNotice("left", event.peer);
+      }
     }
 
     setConnection(activePeerCount() > 0);
     if (app.querySelector(".main-widget")) renderWidget();
+    renderMessages();
   } else if (event.type === "presence") {
     if (typeof event.peer !== "string") return;
     const peer = ensurePeer(event.peer);
@@ -1117,7 +1282,8 @@ bridge.onEvent((event) => {
       event.displayName = peer.displayName || "";
     }
 
-    state.messages.push(event);
+    pushUnreadChatEntry(event, true);
+    if (!state.chatOpen && app.querySelector(".main-widget")) renderWidget();
     renderMessages();
   } else if (event.type === "profile" && typeof event.peer === "string") {
     const peer = ensurePeer(event.peer);
@@ -1139,7 +1305,7 @@ bridge.onEvent((event) => {
   }
 });
 window.addEventListener("keydown", (event) => {
-  const namePopover = app.querySelector(".name-popover");
+  const namePopover = app.querySelector(".menu-popover");
   const nameInput = app.querySelector("#display-name-input");
   const nameForm = app.querySelector(".name-form");
   const isNameEditorOpen = Boolean(namePopover && !namePopover.hidden);
@@ -1147,7 +1313,10 @@ window.addEventListener("keydown", (event) => {
   if (isNameEditorOpen && event.key === "Escape") {
     event.preventDefault();
     if (nameInput) nameInput.value = state.displayName;
-    if (namePopover) namePopover.hidden = true;
+    if (namePopover) {
+      state.menuOpen = false;
+      namePopover.hidden = true;
+    }
     return;
   }
 
