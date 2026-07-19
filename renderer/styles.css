@@ -202,14 +202,14 @@ button {
   stroke-linecap: round;
 }
 .character.present {
-  color: var(--accent);
+  color: #63d98f;
   animation: float 3.2s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px rgb(var(--accent-rgb) / 67%));
+  filter: drop-shadow(0 0 10px rgb(99 217 143 / 67%));
 }
 .character.idle {
-  color: var(--accent-mid);
+  color: #93a09a;
   animation: drift 5s ease-in-out infinite;
-  filter: drop-shadow(0 0 11px rgb(var(--accent-rgb) / 53%));
+  filter: drop-shadow(0 0 11px rgb(147 160 154 / 53%));
 }
 .character.away {
   color: #6f8c81;
@@ -391,12 +391,12 @@ body.joined-transparent .main-widget .chat-button {
   background: #708d82;
 }
 .present .status-dot {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  background: #63d98f;
+  box-shadow: 0 0 8px #63d98f;
 }
 .idle .status-dot {
-  background: var(--accent-mid);
-  box-shadow: 0 0 8px var(--accent-mid);
+  background: #93a09a;
+  box-shadow: 0 0 8px #93a09a;
 }
 .away .status-dot {
   background: #738c83;

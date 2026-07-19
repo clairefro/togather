@@ -81,12 +81,16 @@ const WINDOW_SIZE_KEY = "togather.window-size.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const JOIN_WAIT_TIMEOUT_MS = 20000;
 const IDLE_AFTER_MS = 3 * 60 * 1000;
-const PRESENCE_HEARTBEAT_MS = 15000;
+const PRESENCE_HEARTBEAT_MS = 5000;
+const PRESENCE_WATCHDOG_MS = 1000;
+const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
+const SYSTEM_IDLE_POLL_MS = 1000;
 const state = {
   connected: false,
   partnerPresence: "away",
   localPresence: "present",
   lastActivityAt: Date.now(),
+  lastPresenceSentAt: 0,
   inviteCode: "",
   creatingRoom: false,
   joiningRoom: false,
@@ -97,6 +101,11 @@ const state = {
   listeners: new Set(),
   idleTimer: null,
   presenceHeartbeatTimer: null,
+  presenceWatchdogTimer: null,
+  systemIdlePollTimer: null,
+  systemIdlePollInFlight: false,
+  systemIdleSupported: true,
+  systemIdleMs: 0,
   joinWaitTimer: null,
   startingPromise: null,
 };
@@ -510,6 +519,8 @@ async function resetPairing() {
   state.joinWaitTimer = null;
   clearIdleTimer();
   stopPresenceHeartbeat();
+  stopPresenceWatchdog();
+  stopSystemIdlePolling();
   await sendAwayIfConnected();
   try {
     await bridge.send({ type: "leave" });
@@ -530,6 +541,8 @@ async function exitApp() {
   try {
     clearIdleTimer();
     stopPresenceHeartbeat();
+    stopPresenceWatchdog();
+    stopSystemIdlePolling();
     await sendAwayIfConnected();
   } catch {
     // Ignore away signaling failures during shutdown.
@@ -626,9 +639,13 @@ function setConnection(connected) {
     renderWidget();
     markUserActive();
     startPresenceHeartbeat();
+    startPresenceWatchdog();
+    startSystemIdlePolling();
   } else if (app.querySelector(".main-widget")) {
     clearIdleTimer();
     stopPresenceHeartbeat();
+    stopPresenceWatchdog();
+    stopSystemIdlePolling();
     state.partnerPresence = "away";
     renderWidget();
   }
@@ -691,8 +708,70 @@ function stopPresenceHeartbeat() {
   state.presenceHeartbeatTimer = null;
 }
 
+function stopPresenceWatchdog() {
+  clearInterval(state.presenceWatchdogTimer);
+  state.presenceWatchdogTimer = null;
+}
+
+function stopSystemIdlePolling() {
+  clearInterval(state.systemIdlePollTimer);
+  state.systemIdlePollTimer = null;
+  state.systemIdlePollInFlight = false;
+}
+
+async function pollSystemIdleOnce() {
+  if (!state.connected || !state.systemIdleSupported) return;
+  if (state.systemIdlePollInFlight) return;
+
+  state.systemIdlePollInFlight = true;
+  try {
+    const seconds = await invoke("get_system_idle_seconds");
+
+    if (typeof seconds === "number" && Number.isFinite(seconds)) {
+      state.systemIdleMs = Math.max(0, seconds * 1000);
+      state.lastActivityAt = Date.now() - state.systemIdleMs;
+    } else {
+      state.systemIdleSupported = false;
+    }
+  } catch {
+    state.systemIdleSupported = false;
+  } finally {
+    state.systemIdlePollInFlight = false;
+  }
+}
+
+function startSystemIdlePolling() {
+  stopSystemIdlePolling();
+  if (!state.connected || !state.systemIdleSupported) return;
+
+  pollSystemIdleOnce().then(evaluatePresence);
+  state.systemIdlePollTimer = setInterval(() => {
+    pollSystemIdleOnce().then(evaluatePresence);
+  }, SYSTEM_IDLE_POLL_MS);
+}
+
+function evaluatePresence() {
+  if (!state.connected) return;
+
+  const idleForMs = state.systemIdleSupported
+    ? state.systemIdleMs
+    : Date.now() - state.lastActivityAt;
+  setLocalPresence(idleForMs >= IDLE_AFTER_MS ? "idle" : "present");
+}
+
+function startPresenceWatchdog() {
+  stopPresenceWatchdog();
+  if (!state.connected) return;
+
+  evaluatePresence();
+  state.presenceWatchdogTimer = setInterval(() => {
+    evaluatePresence();
+  }, PRESENCE_WATCHDOG_MS);
+}
+
 function sendCurrentPresence() {
   if (!state.connected) return;
+  state.lastPresenceSentAt = Date.now();
   bridge
     .send({ type: "send-presence", state: state.localPresence })
     .catch(showError);
@@ -720,19 +799,24 @@ function armIdleTimer() {
   if (!state.connected) return;
 
   state.idleTimer = setTimeout(() => {
-    const idleForMs = Date.now() - state.lastActivityAt;
-    if (idleForMs >= IDLE_AFTER_MS) {
-      setLocalPresence("idle");
-      return;
-    }
-
-    armIdleTimer();
+    evaluatePresence();
+    if (state.localPresence !== "idle") armIdleTimer();
   }, IDLE_AFTER_MS);
 }
 
 function markUserActive() {
   state.lastActivityAt = Date.now();
-  setLocalPresence("present");
+  if (state.systemIdleSupported) state.systemIdleMs = 0;
+
+  if (state.localPresence !== "present") {
+    setLocalPresence("present");
+  } else if (
+    state.connected &&
+    Date.now() - state.lastPresenceSentAt >= ACTIVITY_PRESENCE_THROTTLE_MS
+  ) {
+    // Re-send current presence on sustained activity if prior packet was missed.
+    sendCurrentPresence();
+  }
 
   armIdleTimer();
 }
