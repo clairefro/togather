@@ -79,6 +79,7 @@ const appWindow = getCurrentWindow();
 const app = document.querySelector("#app");
 const WINDOW_SIZE_KEY = "togather.window-size.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
+const DISPLAY_NAME_KEY = "togather.display-name.v1";
 const JOIN_WAIT_TIMEOUT_MS = 20000;
 const IDLE_AFTER_MS = 3 * 60 * 1000;
 const PRESENCE_HEARTBEAT_MS = 5000;
@@ -87,8 +88,11 @@ const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
 const state = {
   connected: false,
-  partnerPresence: "away",
+  selfPeerId: "",
+  peers: new Map(),
+  connectedPeers: new Set(),
   localPresence: "present",
+  displayName: "",
   lastActivityAt: Date.now(),
   lastPresenceSentAt: 0,
   inviteCode: "",
@@ -297,6 +301,64 @@ function saveLastRoomCode(code) {
   }
 }
 
+function normalizeDisplayName(value) {
+  if (typeof value !== "string") return "";
+  return value.trim().slice(0, 40);
+}
+
+function readDisplayName() {
+  try {
+    const value = localStorage.getItem(DISPLAY_NAME_KEY);
+    return normalizeDisplayName(value ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function saveDisplayName(name) {
+  try {
+    localStorage.setItem(DISPLAY_NAME_KEY, normalizeDisplayName(name));
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+function ensurePeer(peerId) {
+  const existing = state.peers.get(peerId);
+  if (existing) return existing;
+
+  const created = { presence: "away", displayName: "", lastSeenAt: Date.now() };
+  state.peers.set(peerId, created);
+  return created;
+}
+
+function peerShortId(peerId) {
+  return typeof peerId === "string" ? peerId.slice(0, 8) : "peer";
+}
+
+function activePeerIds() {
+  return [...state.connectedPeers].filter(
+    (peerId) => peerId !== state.selfPeerId,
+  );
+}
+
+function activePeerCount() {
+  return activePeerIds().length;
+}
+
+function aggregatePeerPresence() {
+  if (!activePeerCount()) return "away";
+
+  let hasIdle = false;
+  for (const peerId of activePeerIds()) {
+    const presence = state.peers.get(peerId)?.presence ?? "away";
+    if (presence === "present") return "present";
+    if (presence === "idle") hasIdle = true;
+  }
+
+  return hasIdle ? "idle" : "away";
+}
+
 function bindDragHandle() {
   const dragBar = app.querySelector(".drag-bar");
   const widget = app.querySelector(".widget");
@@ -485,17 +547,83 @@ function renderInvite() {
 }
 
 function label() {
-  return state.connected
-    ? {
-        present: "Present",
-        idle: "Idle",
-        away: "Away",
-      }[state.partnerPresence]
-    : "Waiting to connect";
+  if (!state.connected) return "Waiting to connect";
+
+  const statusLabel = {
+    present: "Present",
+    idle: "Idle",
+    away: "Away",
+  }[aggregatePeerPresence()];
+
+  const count = activePeerCount();
+  const peerLabel = count === 1 ? "peer" : "peers";
+  return `${statusLabel} · ${count} ${peerLabel}`;
 }
+
+function peerDisplayName(peerId) {
+  const peer = state.peers.get(peerId);
+  if (peer?.displayName) return peer.displayName;
+  return `Peer ${peerShortId(peerId)}`;
+}
+
 function renderWidget() {
+  const aggregate = aggregatePeerPresence();
+  const peerItems = activePeerIds()
+    .sort((a, b) => peerDisplayName(a).localeCompare(peerDisplayName(b)))
+    .map((peerId) => {
+      const peer = state.peers.get(peerId);
+      const presence = peer?.presence ?? "away";
+      const caption = peer?.displayName || peerShortId(peerId);
+
+      return `<div class="peer-card ${presence}"><div class="character ${presence}"><svg viewBox="0 0 90 90"><circle class="orb" cx="45" cy="45" r="31"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path class="smile" d="M31 57 Q45 65 59 57"/></svg></div><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div></div>`;
+    })
+    .join("");
+
   if (state.connected) document.body.classList.add("joined-transparent");
-  app.innerHTML = `<section class="widget main-widget ${state.partnerPresence}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="click-through" aria-label="Toggle click-through">${state.clickThrough ? "◎" : "◉"}</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="presence-body"><div class="character ${state.partnerPresence}"><svg viewBox="0 0 90 90"><defs><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle class="orb" cx="45" cy="45" r="31"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path class="smile" d="M31 57 Q45 65 59 57"/></svg></div><div class="status"><span class="status-dot"></span><span>${label()}</span></div></div><footer><button class="chat-button" data-action="chat">⌁ Chat <b>${state.messages.length || ""}</b></button></footer><aside class="chat-popover" hidden><div class="chat-header"><span>Little notes</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="set-name" aria-label="Set display name">✎</button><button class="icon-button" data-action="click-through" aria-label="Toggle click-through">${state.clickThrough ? "◎" : "◉"}</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="presence-body"><div class="status"><span class="status-dot"></span><span>${label()}</span></div><div class="peer-strip">${peerItems || '<p class="peer-empty">No peers connected yet.</p>'}</div></div><footer><button class="chat-button" data-action="chat">⌁ Chat <b>${state.messages.length || ""}</b></button></footer><aside class="name-popover" hidden><form class="name-form"><label for="display-name-input">Display name</label><input id="display-name-input" maxlength="40" placeholder="Your name" autocomplete="off" value="${escapeHtml(state.displayName)}"><div class="name-actions"><button type="button" class="quiet" data-action="cancel-name">Cancel</button><button type="submit" class="primary">Save</button></div></form></aside><aside class="chat-popover" hidden><div class="chat-header"><span>Little notes</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app
+    .querySelector('[data-action="set-name"]')
+    .addEventListener("click", () => {
+      const popover = app.querySelector(".name-popover");
+      const input = app.querySelector("#display-name-input");
+      if (!popover || !input) return;
+
+      popover.hidden = !popover.hidden;
+      if (!popover.hidden) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    });
+  app
+    .querySelector('[data-action="cancel-name"]')
+    .addEventListener("click", () => {
+      const popover = app.querySelector(".name-popover");
+      const input = app.querySelector("#display-name-input");
+      if (!popover || !input) return;
+
+      input.value = state.displayName;
+      popover.hidden = true;
+    });
+  app.querySelector(".name-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const popover = app.querySelector(".name-popover");
+    const input = app.querySelector("#display-name-input");
+    if (!popover || !input) return;
+
+    state.displayName = normalizeDisplayName(input.value);
+    saveDisplayName(state.displayName);
+
+    try {
+      await bridge.send({
+        type: "set-profile",
+        displayName: state.displayName,
+      });
+      popover.hidden = true;
+      renderWidget();
+    } catch (error) {
+      showError(error);
+    }
+  });
   app
     .querySelector('[data-action="chat"]')
     .addEventListener("click", toggleChat);
@@ -530,7 +658,8 @@ async function resetPairing() {
 
   state.connected = false;
   state.localPresence = "present";
-  state.partnerPresence = "away";
+  state.connectedPeers.clear();
+  state.peers.clear();
   state.inviteCode = "";
   state.creatingRoom = false;
   state.messages = [];
@@ -629,24 +758,28 @@ async function joinPairing() {
   }
 }
 function setConnection(connected) {
+  if (state.connected === connected) return;
+
   state.connected = connected;
   document.body.classList.toggle("joined-transparent", connected);
   if (connected) {
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
     state.joiningRoom = false;
-    state.partnerPresence = "present";
     renderWidget();
     markUserActive();
     startPresenceHeartbeat();
     startPresenceWatchdog();
     startSystemIdlePolling();
+    bridge
+      .send({ type: "set-profile", displayName: state.displayName })
+      .catch(showError);
   } else if (app.querySelector(".main-widget")) {
     clearIdleTimer();
     stopPresenceHeartbeat();
     stopPresenceWatchdog();
     stopSystemIdlePolling();
-    state.partnerPresence = "away";
+    state.connectedPeers.clear();
     renderWidget();
   }
 }
@@ -665,7 +798,7 @@ function renderMessages() {
     ? state.messages
         .map(
           (message) =>
-            `<p class="message ${message.from}">${escapeHtml(message.text)}</p>`,
+            `<p class="message ${message.from}">${message.from === "peer" ? `<span class="sender">${escapeHtml(message.displayName || `Peer ${peerShortId(message.peer)}`)}:</span> ` : ""}${escapeHtml(message.text)}</p>`,
         )
         .join("")
     : '<p class="empty-chat">A little hello goes a long way.</p>';
@@ -678,7 +811,11 @@ function renderMessages() {
     if (!text) return;
     try {
       await bridge.send({ type: "send-chat", text });
-      state.messages.push({ text, from: "self" });
+      state.messages.push({
+        text,
+        from: "self",
+        displayName: state.displayName,
+      });
       input.value = "";
       renderMessages();
       markUserActive();
@@ -943,17 +1080,51 @@ function triggerPrimaryAction() {
 }
 
 bridge.onEvent((event) => {
-  if (event.type === "invite") {
+  if (event.type === "ready" && typeof event.publicKey === "string") {
+    state.selfPeerId = event.publicKey;
+  } else if (event.type === "invite") {
     state.inviteCode = event.code;
     saveLastRoomCode(event.code);
     renderInvite();
-  } else if (event.type === "peer-status") setConnection(event.connected);
-  else if (event.type === "presence") {
-    state.partnerPresence = event.state;
+  } else if (event.type === "peer-status" && typeof event.peer === "string") {
+    const peer = ensurePeer(event.peer);
+
+    if (event.connected) {
+      peer.lastSeenAt = Date.now();
+      if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
+    } else {
+      peer.presence = "away";
+      peer.lastSeenAt = Date.now();
+      state.connectedPeers.delete(event.peer);
+    }
+
+    setConnection(activePeerCount() > 0);
+    if (app.querySelector(".main-widget")) renderWidget();
+  } else if (event.type === "presence") {
+    if (typeof event.peer !== "string") return;
+    const peer = ensurePeer(event.peer);
+    peer.presence = event.state;
+    peer.lastSeenAt = Date.now();
+    if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
+
+    setConnection(activePeerCount() > 0);
+
     if (app.querySelector(".main-widget")) renderWidget();
   } else if (event.type === "chat") {
+    if (typeof event.peer === "string") {
+      const peer = ensurePeer(event.peer);
+      peer.lastSeenAt = Date.now();
+      event.displayName = peer.displayName || "";
+    }
+
     state.messages.push(event);
     renderMessages();
+  } else if (event.type === "profile" && typeof event.peer === "string") {
+    const peer = ensurePeer(event.peer);
+    peer.displayName = normalizeDisplayName(event.displayName ?? "");
+    peer.lastSeenAt = Date.now();
+
+    if (app.querySelector(".main-widget")) renderWidget();
   } else if (event.type === "error") {
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
@@ -968,6 +1139,31 @@ bridge.onEvent((event) => {
   }
 });
 window.addEventListener("keydown", (event) => {
+  const namePopover = app.querySelector(".name-popover");
+  const nameInput = app.querySelector("#display-name-input");
+  const nameForm = app.querySelector(".name-form");
+  const isNameEditorOpen = Boolean(namePopover && !namePopover.hidden);
+
+  if (isNameEditorOpen && event.key === "Escape") {
+    event.preventDefault();
+    if (nameInput) nameInput.value = state.displayName;
+    if (namePopover) namePopover.hidden = true;
+    return;
+  }
+
+  if (
+    isNameEditorOpen &&
+    event.key === "Enter" &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey
+  ) {
+    event.preventDefault();
+    nameForm?.requestSubmit();
+    return;
+  }
+
   if (event.key === "Escape" && state.clickThrough) {
     state.clickThrough = false;
     bridge.setClickThrough(false).then(renderWidget).catch(showError);
@@ -989,6 +1185,7 @@ window.addEventListener("keydown", (event) => {
   event.preventDefault();
   triggerPrimaryAction();
 });
+state.displayName = readDisplayName();
 renderOnboarding();
 centerWindowOnLaunch();
 enableWindowPositionPersistence();

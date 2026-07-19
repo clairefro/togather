@@ -215,6 +215,8 @@ const peers = new Map();
 
 let discovery = null;
 let inputBuffer = "";
+let localPresence = "present";
+let localDisplayName = "";
 
 function emit(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -271,7 +273,20 @@ function sendToPeers(message) {
   }
 }
 
-function receivePeerMessage(line) {
+function sendToPeer(socket, message) {
+  if (socket.destroyed) return;
+  socket.write(`${JSON.stringify(message)}\n`);
+}
+
+function parseDisplayName(value) {
+  if (typeof value !== "string") {
+    throw new Error("Display name must be a string.");
+  }
+
+  return value.trim().slice(0, 40);
+}
+
+function receivePeerMessage(line, fromPeer) {
   let message;
 
   try {
@@ -281,7 +296,7 @@ function receivePeerMessage(line) {
   }
 
   if (message?.type === "presence" && PRESENCE_STATES.has(message.state)) {
-    emit({ type: "presence", state: message.state });
+    emit({ type: "presence", peer: fromPeer, state: message.state });
   } else if (
     message?.type === "chat" &&
     typeof message.text === "string" &&
@@ -289,10 +304,18 @@ function receivePeerMessage(line) {
   ) {
     emit({
       type: "chat",
+      peer: fromPeer,
       text: message.text.slice(0, MAX_CHAT_LENGTH),
       ts: message.ts,
       from: "peer",
     });
+  } else if (message?.type === "profile") {
+    try {
+      const displayName = parseDisplayName(message.displayName ?? "");
+      emit({ type: "profile", peer: fromPeer, displayName });
+    } catch {
+      // Ignore invalid profile payloads from peers.
+    }
   }
 }
 
@@ -302,6 +325,8 @@ function attachPeer(socket, info) {
 
   peers.set(id, socket);
   emit({ type: "peer-status", connected: true, peer: id });
+  sendToPeer(socket, { type: "presence", state: localPresence });
+  sendToPeer(socket, { type: "profile", displayName: localDisplayName });
 
   socket.on("data", (chunk) => {
     messageBuffer += b4a.toString(chunk);
@@ -309,7 +334,7 @@ function attachPeer(socket, info) {
     messageBuffer = lines.pop();
 
     for (const line of lines) {
-      if (line.trim()) receivePeerMessage(line);
+      if (line.trim()) receivePeerMessage(line, id);
     }
   });
 
@@ -318,7 +343,7 @@ function attachPeer(socket, info) {
 
     peers.delete(id);
     emit({ type: "peer-status", connected: false, peer: id });
-    emit({ type: "presence", state: "away" });
+    emit({ type: "presence", peer: id, state: "away" });
   };
 
   socket.once("close", disconnect);
@@ -375,7 +400,14 @@ async function handleCommand(command) {
         throw new Error("Presence state must be present, idle, or away.");
       }
 
+      localPresence = command.state;
       sendToPeers({ type: "presence", state: command.state });
+      return;
+    }
+
+    case "set-profile": {
+      localDisplayName = parseDisplayName(command.displayName ?? "");
+      sendToPeers({ type: "profile", displayName: localDisplayName });
       return;
     }
 

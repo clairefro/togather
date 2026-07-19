@@ -384,6 +384,61 @@ body.joined-transparent .main-widget .chat-button {
   color: #dcece5;
   font-size: 13px;
 }
+.peer-strip {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 2px 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.peer-card,
+.peer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  min-width: 86px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: #dcece5;
+  font-size: 10px;
+}
+.peer-card .character {
+  width: 44px;
+  height: 44px;
+}
+.peer-caption {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: 100%;
+  overflow: hidden;
+  color: #cfe1da;
+}
+.peer-caption .status-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+}
+.peer-caption-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.peer-empty {
+  justify-content: center;
+  min-width: 100%;
+  min-height: 72px;
+  color: #9cb8ad;
+}
 .status-dot {
   width: 7px;
   height: 7px;
@@ -432,6 +487,49 @@ body.joined-transparent .main-widget .chat-button {
   background: var(--surface-panel);
   box-shadow: 0 12px 28px #071216aa;
 }
+.name-popover {
+  position: absolute;
+  top: 40px;
+  right: 8px;
+  left: 8px;
+  z-index: 40;
+  padding: 10px;
+  border: 1px solid #4a675d;
+  border-radius: 12px;
+  background: var(--surface-panel);
+  box-shadow: 0 8px 20px #071216aa;
+}
+.name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.name-form label {
+  color: #d8ebe3;
+  font-size: 12px;
+}
+.name-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid #45645a;
+  border-radius: 8px;
+  outline: 0;
+  color: #fff;
+  background: #1b1830;
+}
+.name-form input:focus {
+  border-color: var(--accent);
+}
+.name-actions {
+  display: flex;
+  gap: 8px;
+}
+.name-actions .primary,
+.name-actions .quiet {
+  margin: 0;
+  min-height: 30px;
+}
 .chat-header {
   display: flex;
   justify-content: space-between;
@@ -458,6 +556,11 @@ body.joined-transparent .main-widget .chat-button {
   background: var(--surface-message);
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+.message .sender {
+  color: #b5c8c0;
+  font-size: 10px;
+  font-weight: 650;
 }
 .message.self {
   margin-left: auto;
