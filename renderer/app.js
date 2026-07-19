@@ -80,9 +80,11 @@ const app = document.querySelector("#app");
 const WINDOW_SIZE_KEY = "togather.window-size.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const JOIN_WAIT_TIMEOUT_MS = 20000;
+const IDLE_AFTER_MS = 3 * 60 * 1000;
 const state = {
   connected: false,
-  partnerPresence: "offline",
+  partnerPresence: "away",
+  localPresence: "present",
   inviteCode: "",
   creatingRoom: false,
   joiningRoom: false,
@@ -91,7 +93,7 @@ const state = {
   child: null,
   buffer: "",
   listeners: new Set(),
-  typingTimer: null,
+  idleTimer: null,
   joinWaitTimer: null,
   startingPromise: null,
 };
@@ -322,7 +324,7 @@ function bindResizeHandle() {
   if (!resizeGrip) return;
 
   let resizeSession = null;
-  const minWidth = 180;
+  const minWidth = 200;
   const minHeight = 200;
 
   resizeGrip.addEventListener("pointerdown", async (event) => {
@@ -395,7 +397,7 @@ function renderOnboarding(mode = "choose") {
   const joiningLabel = state.joiningRoom ? "Joining room..." : "Connect";
   const chooseContent = `<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button><button class="quiet" data-action="enter-code" ${state.creatingRoom ? "disabled" : ""}>I have a code</button>${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character away"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
@@ -473,10 +475,9 @@ function renderInvite() {
 function label() {
   return state.connected
     ? {
-        online: "Here with you",
-        typing: "Typing…",
-        away: "Away for now",
-        offline: "Offline",
+        present: "Present",
+        idle: "Idle",
+        away: "Away",
       }[state.partnerPresence]
     : "Waiting to connect";
 }
@@ -504,6 +505,8 @@ async function resetPairing() {
   clearError();
   clearTimeout(state.joinWaitTimer);
   state.joinWaitTimer = null;
+  clearIdleTimer();
+  await sendAwayIfConnected();
   try {
     await bridge.send({ type: "leave" });
   } catch {
@@ -511,7 +514,8 @@ async function resetPairing() {
   }
 
   state.connected = false;
-  state.partnerPresence = "offline";
+  state.localPresence = "present";
+  state.partnerPresence = "away";
   state.inviteCode = "";
   state.creatingRoom = false;
   state.messages = [];
@@ -519,6 +523,19 @@ async function resetPairing() {
 }
 
 async function exitApp() {
+  try {
+    clearIdleTimer();
+    await sendAwayIfConnected();
+  } catch {
+    // Ignore away signaling failures during shutdown.
+  }
+
+  try {
+    await bridge.send({ type: "leave" });
+  } catch {
+    // Ignore if worker is already gone.
+  }
+
   try {
     if (state.child) await state.child.kill();
   } catch {
@@ -600,11 +617,12 @@ function setConnection(connected) {
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
     state.joiningRoom = false;
-    state.partnerPresence = "online";
+    state.partnerPresence = "present";
     renderWidget();
-    sendPresence(document.hasFocus() ? "online" : "away");
+    markUserActive();
   } else if (app.querySelector(".main-widget")) {
-    state.partnerPresence = "offline";
+    clearIdleTimer();
+    state.partnerPresence = "away";
     renderWidget();
   }
 }
@@ -639,12 +657,12 @@ function renderMessages() {
       state.messages.push({ text, from: "self" });
       input.value = "";
       renderMessages();
-      sendPresence("online");
+      markUserActive();
     } catch (error) {
       showError(error);
     }
   };
-  form.querySelector("input").oninput = announceTyping;
+  form.querySelector("input").oninput = markUserActive;
 }
 async function toggleClickThrough() {
   state.clickThrough = !state.clickThrough;
@@ -656,14 +674,64 @@ async function toggleClickThrough() {
     showError(`Click-through is unavailable here: ${normalizeError(error)}`);
   }
 }
-function sendPresence(presence) {
-  if (state.connected)
-    bridge.send({ type: "send-presence", state: presence }).catch(showError);
+function clearIdleTimer() {
+  clearTimeout(state.idleTimer);
+  state.idleTimer = null;
 }
-function announceTyping() {
-  sendPresence("typing");
-  clearTimeout(state.typingTimer);
-  state.typingTimer = setTimeout(() => sendPresence("online"), 1500);
+
+function setLocalPresence(presence) {
+  if (state.localPresence === presence) return;
+  state.localPresence = presence;
+
+  if (state.connected) {
+    bridge.send({ type: "send-presence", state: presence }).catch(showError);
+  }
+}
+
+function armIdleTimer() {
+  clearIdleTimer();
+  if (!state.connected) return;
+
+  state.idleTimer = setTimeout(() => {
+    setLocalPresence("idle");
+  }, IDLE_AFTER_MS);
+}
+
+function markUserActive() {
+  setLocalPresence("present");
+
+  armIdleTimer();
+}
+
+async function sendAwayIfConnected() {
+  if (!state.connected) return;
+
+  try {
+    await bridge.send({ type: "send-presence", state: "away" });
+  } catch {
+    // Ignore best-effort away signal failures.
+  }
+
+  state.localPresence = "away";
+}
+
+function enablePresenceTracking() {
+  const activityEvents = [
+    "mousemove",
+    "mousedown",
+    "keydown",
+    "touchstart",
+    "wheel",
+  ];
+
+  for (const eventName of activityEvents) {
+    window.addEventListener(eventName, markUserActive, { passive: true });
+  }
+
+  window.addEventListener("focus", markUserActive);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") markUserActive();
+  });
 }
 
 function readSavedWindowSize() {
@@ -773,8 +841,6 @@ bridge.onEvent((event) => {
     showError(event.message);
   }
 });
-window.addEventListener("focus", () => sendPresence("online"));
-window.addEventListener("blur", () => sendPresence("away"));
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && state.clickThrough) {
     state.clickThrough = false;
@@ -800,6 +866,7 @@ window.addEventListener("keydown", (event) => {
 renderOnboarding();
 centerWindowOnLaunch();
 enableWindowPositionPersistence();
+enablePresenceTracking();
 bridge
   .start()
   .catch((error) =>

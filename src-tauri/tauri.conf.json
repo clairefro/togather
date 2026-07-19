@@ -13,8 +13,10 @@
       {
         "label": "main",
         "title": "togather",
-        "width": 220,
+        "width": 300,
         "height": 380,
+        "minWidth": 200,
+        "minHeight": 200,
         "resizable": true,
         "decorations": false,
         "transparent": true,

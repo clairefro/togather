@@ -3,7 +3,7 @@ import b4a from "b4a";
 import crypto from "hypercore-crypto";
 import Hyperswarm from "hyperswarm";
 
-const PRESENCE_STATES = new Set(["online", "away", "typing"]);
+const PRESENCE_STATES = new Set(["present", "idle", "away"]);
 const MAX_CHAT_LENGTH = 2_000;
 const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
@@ -318,7 +318,7 @@ function attachPeer(socket, info) {
 
     peers.delete(id);
     emit({ type: "peer-status", connected: false, peer: id });
-    emit({ type: "presence", state: "offline" });
+    emit({ type: "presence", state: "away" });
   };
 
   socket.once("close", disconnect);
@@ -372,7 +372,7 @@ async function handleCommand(command) {
 
     case "send-presence": {
       if (!PRESENCE_STATES.has(command.state)) {
-        throw new Error("Presence state must be online, away, or typing.");
+        throw new Error("Presence state must be present, idle, or away.");
       }
 
       sendToPeers({ type: "presence", state: command.state });
