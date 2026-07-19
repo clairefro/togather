@@ -1,0 +1,710 @@
+const tauri = window.__TAURI__;
+const { invoke, Channel } = tauri.core;
+const { PhysicalPosition, PhysicalSize } = tauri.dpi;
+const { resourceDir, join } = tauri.path;
+const { getCurrentWindow } = tauri.window;
+
+class LocalEventEmitter {
+  constructor() {
+    this.listeners = new Map();
+  }
+
+  on(name, listener) {
+    const set = this.listeners.get(name) ?? new Set();
+    set.add(listener);
+    this.listeners.set(name, set);
+    return this;
+  }
+
+  emit(name, payload) {
+    for (const listener of this.listeners.get(name) ?? []) {
+      listener(payload);
+    }
+  }
+}
+
+class BareWorkerCommand extends LocalEventEmitter {
+  constructor(program, args = [], options = {}) {
+    super();
+    this.program = program;
+    this.args = args;
+    this.options = options;
+    this.stdout = new LocalEventEmitter();
+    this.stderr = new LocalEventEmitter();
+  }
+
+  static create(program, args = [], options = {}) {
+    return new BareWorkerCommand(program, args, options);
+  }
+
+  async spawn() {
+    const onEvent = new Channel();
+
+    onEvent.onmessage = (event) => {
+      if (event.event === "Error") this.emit("error", event.payload);
+      else if (event.event === "Terminated") this.emit("close", event.payload);
+      else if (event.event === "Stdout")
+        this.stdout.emit("data", event.payload);
+      else if (event.event === "Stderr")
+        this.stderr.emit("data", event.payload);
+    };
+
+    const pid = await invoke("plugin:shell|spawn", {
+      program: this.program,
+      args: this.args,
+      options: this.options,
+      onEvent,
+    });
+
+    return {
+      write(data) {
+        const bytes =
+          typeof data === "string"
+            ? Array.from(new TextEncoder().encode(data))
+            : data;
+
+        return invoke("plugin:shell|stdin_write", {
+          pid,
+          buffer: bytes,
+        });
+      },
+      kill() {
+        return invoke("plugin:shell|kill", { pid });
+      },
+    };
+  }
+}
+
+const appWindow = getCurrentWindow();
+const app = document.querySelector("#app");
+const WINDOW_POSITION_KEY = "pair-presence.window-position.v1";
+const state = {
+  connected: false,
+  partnerPresence: "offline",
+  inviteCode: "",
+  creatingRoom: false,
+  joiningRoom: false,
+  messages: [],
+  clickThrough: false,
+  child: null,
+  buffer: "",
+  listeners: new Set(),
+  typingTimer: null,
+  startingPromise: null,
+};
+
+function ioPayloadToString(payload) {
+  if (typeof payload === "string") return payload;
+  return new TextDecoder().decode(Uint8Array.from(payload));
+}
+
+function normalizeError(input) {
+  if (typeof input === "string") return input.trim() || "Unknown error.";
+
+  if (input && typeof input.message === "string") {
+    return input.message.trim() || "Unknown error.";
+  }
+
+  const serialized = JSON.stringify(input);
+  if (!serialized || serialized === "{}" || serialized === "null") {
+    return "Unknown error. Open DevTools for details.";
+  }
+
+  return serialized;
+}
+
+async function workerPathCandidates() {
+  const resourcePath = await resourceDir();
+
+  return Promise.all([
+    join(resourcePath, "workers", "main.js"),
+    join(resourcePath, "..", "..", "..", "workers", "main.js"),
+    join(resourcePath, "..", "..", "workers", "main.js"),
+  ]);
+}
+
+const bridge = {
+  async start() {
+    if (state.child) return;
+    const candidates = await workerPathCandidates();
+    let lastError = null;
+
+    for (const candidatePath of candidates) {
+      try {
+        state.buffer = "";
+        let sawReady = false;
+        let settleReady;
+
+        const readyPromise = new Promise((resolve, reject) => {
+          settleReady = { resolve, reject };
+        });
+
+        const readyTimeout = setTimeout(() => {
+          if (!sawReady) {
+            settleReady.reject(
+              new Error(
+                `Worker did not become ready at path: ${candidatePath}`,
+              ),
+            );
+          }
+        }, 2500);
+
+        const command = BareWorkerCommand.create("bare-worker", [
+          candidatePath,
+        ]);
+        command.stdout.on("data", (chunk) => {
+          state.buffer += ioPayloadToString(chunk);
+          const lines = state.buffer.split("\n");
+          state.buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+
+              if (event?.type === "ready" && !sawReady) {
+                sawReady = true;
+                clearTimeout(readyTimeout);
+                settleReady.resolve();
+              }
+
+              state.listeners.forEach((listener) => listener(event));
+            } catch {
+              showError("The peer worker sent an unreadable message.");
+            }
+          }
+        });
+        command.stderr.on("data", (message) => {
+          const text = ioPayloadToString(message).trim();
+          if (text) showError(`Worker: ${text}`);
+        });
+        command.on("error", (message) => {
+          const errorText = normalizeError(message);
+          if (!sawReady) {
+            clearTimeout(readyTimeout);
+            settleReady.reject(new Error(errorText));
+          }
+        });
+        command.on("close", () => {
+          clearTimeout(readyTimeout);
+          state.child = null;
+          if (state.connected) setConnection(false);
+          if (!sawReady) {
+            settleReady.reject(
+              new Error(`Worker exited before ready at path: ${candidatePath}`),
+            );
+          }
+        });
+
+        state.child = await command.spawn();
+        await readyPromise;
+        return;
+      } catch (error) {
+        if (state.child) {
+          try {
+            await state.child.kill();
+          } catch {
+            // Continue trying other worker paths.
+          }
+          state.child = null;
+        }
+
+        lastError = error;
+      }
+    }
+
+    throw lastError ?? new Error("Failed to start worker process.");
+  },
+  async send(object) {
+    if (!state.child) {
+      state.startingPromise ??= bridge.start().finally(() => {
+        state.startingPromise = null;
+      });
+      await state.startingPromise;
+    }
+
+    if (!state.child) throw new Error("Could not start the peer worker.");
+    await state.child.write(`${JSON.stringify(object)}\n`);
+  },
+  onEvent(callback) {
+    state.listeners.add(callback);
+    return () => state.listeners.delete(callback);
+  },
+  setClickThrough(enabled) {
+    return appWindow.setIgnoreCursorEvents(enabled);
+  },
+};
+window.bridge = bridge;
+
+function showError(message) {
+  const readable = normalizeError(message);
+
+  const error = document.querySelector("[data-error]");
+  if (error) {
+    error.textContent = readable;
+    error.title = readable;
+    error.hidden = false;
+  }
+}
+function clearError() {
+  const error = document.querySelector("[data-error]");
+  if (error) error.hidden = true;
+}
+function escapeHtml(text) {
+  const el = document.createElement("span");
+  el.textContent = text;
+  return el.innerHTML;
+}
+
+function bindDragHandle() {
+  const dragBar = app.querySelector(".drag-bar");
+  const widget = app.querySelector(".widget");
+  if (!dragBar || !widget) return;
+
+  const startDrag = (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest("button, input, textarea, a")) return;
+
+    appWindow
+      .startDragging()
+      .catch((error) =>
+        showError(`Window drag failed: ${normalizeError(error)}`),
+      );
+  };
+
+  dragBar.addEventListener("mousedown", startDrag);
+
+  widget.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest("button, input, textarea, a")) return;
+
+    const rect = widget.getBoundingClientRect();
+    const topZoneHeight = 40;
+    if (event.clientY - rect.top > topZoneHeight) return;
+
+    appWindow
+      .startDragging()
+      .catch((error) =>
+        showError(`Window drag failed: ${normalizeError(error)}`),
+      );
+  });
+}
+
+function bindResizeHandle() {
+  const resizeGrip = app.querySelector('[data-action="resize"]');
+  if (!resizeGrip) return;
+
+  let resizeSession = null;
+  const minWidth = 180;
+  const minHeight = 200;
+
+  resizeGrip.addEventListener("pointerdown", async (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    try {
+      resizeGrip.setPointerCapture(event.pointerId);
+    } catch {
+      // Fallback still works without pointer capture.
+    }
+
+    const initialSize = await appWindow.outerSize();
+    resizeSession = {
+      pointerId: event.pointerId,
+      startX: event.screenX,
+      startY: event.screenY,
+      startWidth: initialSize.width,
+      startHeight: initialSize.height,
+    };
+  });
+
+  resizeGrip.addEventListener("pointermove", (event) => {
+    if (!resizeSession || event.pointerId !== resizeSession.pointerId) return;
+
+    const width = Math.max(
+      minWidth,
+      resizeSession.startWidth + (event.screenX - resizeSession.startX),
+    );
+    const height = Math.max(
+      minHeight,
+      resizeSession.startHeight + (event.screenY - resizeSession.startY),
+    );
+
+    appWindow
+      .setSize(new PhysicalSize(width, height))
+      .catch((error) =>
+        showError(`Window resize failed: ${normalizeError(error)}`),
+      );
+  });
+
+  const endResize = (event) => {
+    if (!resizeSession || event.pointerId !== resizeSession.pointerId) return;
+
+    try {
+      resizeGrip.releasePointerCapture(event.pointerId);
+    } catch {
+      // Ignore if capture was not active.
+    }
+
+    resizeSession = null;
+  };
+
+  resizeGrip.addEventListener("pointerup", endResize);
+  resizeGrip.addEventListener("pointercancel", endResize);
+}
+
+function renderOnboarding(mode = "choose") {
+  state.inviteCode = "";
+  if (mode === "choose") state.joiningRoom = false;
+  document.body.classList.remove("joined-transparent");
+  const creatingLabel = state.creatingRoom
+    ? "Creating room..."
+    : "Create a room";
+  const joiningLabel = state.joiningRoom ? "Joining room..." : "Connect";
+  const chooseContent = `<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button><button class="quiet" data-action="enter-code" ${state.creatingRoom ? "disabled" : ""}>I have a code</button>${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
+  const joinContent =
+    `<label class="field-label" for="invite-code">Room code</label><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body"><div class="character offline"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Be here, together.</h1><p class="muted">A private, direct connection for just the two of you.</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app
+    .querySelector('[data-action="create"]')
+    ?.addEventListener("click", createPairing);
+  app
+    .querySelector('[data-action="enter-code"]')
+    ?.addEventListener("click", () => renderOnboarding("join"));
+  app
+    .querySelector('[data-action="back"]')
+    ?.addEventListener("click", () => renderOnboarding());
+  app
+    .querySelector('[data-action="join"]')
+    ?.addEventListener("click", joinPairing);
+  app
+    .querySelector('[data-action="minimize"]')
+    ?.addEventListener("click", minimizeApp);
+  app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+  app.querySelector("#invite-code")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") joinPairing();
+  });
+  bindDragHandle();
+  bindResizeHandle();
+}
+
+function renderInvite() {
+  state.creatingRoom = false;
+  document.body.classList.remove("joined-transparent");
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this once</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code">${state.inviteCode}</div><button class="primary" data-action="copy">Copy code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app
+    .querySelector('[data-action="copy"]')
+    .addEventListener("click", async () => {
+      await navigator.clipboard.writeText(state.inviteCode);
+      app.querySelector('[data-action="copy"]').textContent = "Copied";
+    });
+  app
+    .querySelector('[data-action="reset"]')
+    ?.addEventListener("click", resetPairing);
+  app
+    .querySelector('[data-action="minimize"]')
+    ?.addEventListener("click", minimizeApp);
+  app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+  bindDragHandle();
+  bindResizeHandle();
+}
+
+function label() {
+  return state.connected
+    ? {
+        online: "Here with you",
+        typing: "Typing…",
+        away: "Away for now",
+        offline: "Offline",
+      }[state.partnerPresence]
+    : "Waiting to connect";
+}
+function renderWidget() {
+  if (state.connected) document.body.classList.add("joined-transparent");
+  app.innerHTML = `<section class="widget main-widget ${state.partnerPresence}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="click-through" aria-label="Toggle click-through">${state.clickThrough ? "◎" : "◉"}</button><button class="icon-button" data-action="minimize" aria-label="Minimize app">−</button><button class="icon-button" data-action="exit" aria-label="Exit app">×</button></header><div class="presence-body"><div class="character ${state.partnerPresence}"><svg viewBox="0 0 90 90"><defs><filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><circle class="orb" cx="45" cy="45" r="31"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path class="smile" d="M31 57 Q45 65 59 57"/></svg></div><div class="status"><span class="status-dot"></span><span>${label()}</span></div></div><footer><button class="chat-button" data-action="chat">⌁ Chat <b>${state.messages.length || ""}</b></button></footer><aside class="chat-popover" hidden><div class="chat-header"><span>Little notes</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app
+    .querySelector('[data-action="chat"]')
+    .addEventListener("click", toggleChat);
+  app
+    .querySelector('[data-action="close-chat"]')
+    .addEventListener("click", toggleChat);
+  app
+    .querySelector('[data-action="click-through"]')
+    .addEventListener("click", toggleClickThrough);
+  app
+    .querySelector('[data-action="minimize"]')
+    ?.addEventListener("click", minimizeApp);
+  app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+  bindDragHandle();
+  bindResizeHandle();
+}
+
+async function resetPairing() {
+  clearError();
+  try {
+    await bridge.send({ type: "leave" });
+  } catch {
+    // Ignore if worker is not running; reset the UI either way.
+  }
+
+  state.connected = false;
+  state.partnerPresence = "offline";
+  state.inviteCode = "";
+  state.creatingRoom = false;
+  state.messages = [];
+  renderOnboarding("choose");
+}
+
+async function exitApp() {
+  try {
+    if (state.child) await state.child.kill();
+  } catch {
+    // If kill fails, still close the window below.
+  }
+
+  await appWindow.close();
+}
+
+async function minimizeApp() {
+  try {
+    await appWindow.minimize();
+  } catch (error) {
+    showError(`Minimize failed: ${normalizeError(error)}`);
+  }
+}
+
+async function createPairing() {
+  if (state.creatingRoom) return;
+
+  clearError();
+  state.creatingRoom = true;
+  renderOnboarding("choose");
+
+  try {
+    await bridge.send({ type: "create-pairing" });
+  } catch (error) {
+    state.creatingRoom = false;
+    renderOnboarding("choose");
+    showError(error);
+  }
+}
+async function joinPairing() {
+  if (state.joiningRoom) return;
+  clearError();
+  const code = app.querySelector("#invite-code").value.trim();
+  if (!code) return showError("Enter a room code.");
+
+  state.joiningRoom = true;
+  const joinButton = app.querySelector('[data-action="join"]');
+  if (joinButton) {
+    joinButton.disabled = true;
+    joinButton.textContent = "Joining room...";
+  }
+
+  try {
+    await bridge.send({ type: "join-pairing", code });
+  } catch (error) {
+    state.joiningRoom = false;
+    if (joinButton) {
+      joinButton.disabled = false;
+      joinButton.textContent = "Connect";
+    }
+    showError(error);
+  }
+}
+function setConnection(connected) {
+  state.connected = connected;
+  document.body.classList.toggle("joined-transparent", connected);
+  if (connected) {
+    state.joiningRoom = false;
+    state.partnerPresence = "online";
+    renderWidget();
+    sendPresence(document.hasFocus() ? "online" : "away");
+  } else if (app.querySelector(".main-widget")) {
+    state.partnerPresence = "offline";
+    renderWidget();
+  }
+}
+function toggleChat() {
+  const popover = app.querySelector(".chat-popover");
+  popover.hidden = !popover.hidden;
+  if (!popover.hidden) {
+    renderMessages();
+    popover.querySelector("input").focus();
+  }
+}
+function renderMessages() {
+  const log = app.querySelector(".message-log");
+  if (!log) return;
+  log.innerHTML = state.messages.length
+    ? state.messages
+        .map(
+          (message) =>
+            `<p class="message ${message.from}">${escapeHtml(message.text)}</p>`,
+        )
+        .join("")
+    : '<p class="empty-chat">A little hello goes a long way.</p>';
+  log.scrollTop = log.scrollHeight;
+  const form = app.querySelector(".chat-form");
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const input = form.querySelector("input");
+    const text = input.value.trim();
+    if (!text) return;
+    try {
+      await bridge.send({ type: "send-chat", text });
+      state.messages.push({ text, from: "self" });
+      input.value = "";
+      renderMessages();
+      sendPresence("online");
+    } catch (error) {
+      showError(error);
+    }
+  };
+  form.querySelector("input").oninput = announceTyping;
+}
+async function toggleClickThrough() {
+  state.clickThrough = !state.clickThrough;
+  try {
+    await bridge.setClickThrough(state.clickThrough);
+    renderWidget();
+  } catch (error) {
+    state.clickThrough = false;
+    showError(`Click-through is unavailable here: ${normalizeError(error)}`);
+  }
+}
+function sendPresence(presence) {
+  if (state.connected)
+    bridge.send({ type: "send-presence", state: presence }).catch(showError);
+}
+function announceTyping() {
+  sendPresence("typing");
+  clearTimeout(state.typingTimer);
+  state.typingTimer = setTimeout(() => sendPresence("online"), 1500);
+}
+
+function readSavedWindowPosition() {
+  try {
+    const raw = localStorage.getItem(WINDOW_POSITION_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
+      return { x: Math.round(parsed.x), y: Math.round(parsed.y) };
+    }
+  } catch {
+    // Ignore corrupt localStorage values.
+  }
+
+  return null;
+}
+
+function saveWindowPosition(position) {
+  try {
+    localStorage.setItem(
+      WINDOW_POSITION_KEY,
+      JSON.stringify({ x: position.x, y: position.y }),
+    );
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function enableWindowPositionPersistence() {
+  appWindow
+    .onMoved(({ payload: position }) => {
+      saveWindowPosition(position);
+    })
+    .catch(() => {});
+}
+
+function positionWindow() {
+  appWindow
+    .currentMonitor()
+    .then(async (monitor) => {
+      if (!monitor) return;
+
+      const savedPosition = readSavedWindowPosition();
+      if (savedPosition) {
+        await appWindow.setPosition(
+          new PhysicalPosition(savedPosition.x, savedPosition.y),
+        );
+      } else {
+        const size = await appWindow.outerSize();
+        await appWindow.setPosition(
+          new PhysicalPosition(
+            monitor.position.x + monitor.size.width - size.width - 24,
+            monitor.position.y + monitor.size.height - size.height - 28,
+          ),
+        );
+      }
+
+      await appWindow.setAlwaysOnTop(true);
+      if (navigator.userAgent.includes("Macintosh"))
+        await appWindow.setVisibleOnAllWorkspaces(true);
+    })
+    .catch(() => {});
+}
+
+function triggerPrimaryAction() {
+  const primaryButton = app.querySelector(
+    '.primary:not([disabled]):not([aria-disabled="true"])',
+  );
+
+  if (primaryButton) primaryButton.click();
+}
+
+bridge.onEvent((event) => {
+  if (event.type === "invite") {
+    state.inviteCode = event.code;
+    renderInvite();
+  } else if (event.type === "peer-status") setConnection(event.connected);
+  else if (event.type === "presence") {
+    state.partnerPresence = event.state;
+    if (app.querySelector(".main-widget")) renderWidget();
+  } else if (event.type === "chat") {
+    state.messages.push(event);
+    renderMessages();
+  } else if (event.type === "error") {
+    state.joiningRoom = false;
+    const joinButton = app.querySelector('[data-action="join"]');
+    if (joinButton) {
+      joinButton.disabled = false;
+      joinButton.textContent = "Connect";
+    }
+
+    showError(event.message);
+  }
+});
+window.addEventListener("focus", () => sendPresence("online"));
+window.addEventListener("blur", () => sendPresence("away"));
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.clickThrough) {
+    state.clickThrough = false;
+    bridge.setClickThrough(false).then(renderWidget).catch(showError);
+    return;
+  }
+
+  if (event.key !== "Enter") return;
+  if (event.defaultPrevented || event.repeat) return;
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    target.closest('input, textarea, [contenteditable="true"]')
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  triggerPrimaryAction();
+});
+renderOnboarding();
+positionWindow();
+enableWindowPositionPersistence();
+bridge
+  .start()
+  .catch((error) =>
+    showError(`Could not launch Bare: ${normalizeError(error)}`),
+  );

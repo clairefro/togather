@@ -1,0 +1,11 @@
+{
+  "name": "pair-presence-worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "b4a": "^1.6.0",
+    "bare-process": "^4.5.1",
+    "hypercore-crypto": "^3.6.0",
+    "hyperswarm": "^4.8.0"
+  }
+}
