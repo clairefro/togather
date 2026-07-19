@@ -81,10 +81,12 @@ const WINDOW_SIZE_KEY = "togather.window-size.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const JOIN_WAIT_TIMEOUT_MS = 20000;
 const IDLE_AFTER_MS = 3 * 60 * 1000;
+const PRESENCE_HEARTBEAT_MS = 15000;
 const state = {
   connected: false,
   partnerPresence: "away",
   localPresence: "present",
+  lastActivityAt: Date.now(),
   inviteCode: "",
   creatingRoom: false,
   joiningRoom: false,
@@ -94,6 +96,7 @@ const state = {
   buffer: "",
   listeners: new Set(),
   idleTimer: null,
+  presenceHeartbeatTimer: null,
   joinWaitTimer: null,
   startingPromise: null,
 };
@@ -506,6 +509,7 @@ async function resetPairing() {
   clearTimeout(state.joinWaitTimer);
   state.joinWaitTimer = null;
   clearIdleTimer();
+  stopPresenceHeartbeat();
   await sendAwayIfConnected();
   try {
     await bridge.send({ type: "leave" });
@@ -525,6 +529,7 @@ async function resetPairing() {
 async function exitApp() {
   try {
     clearIdleTimer();
+    stopPresenceHeartbeat();
     await sendAwayIfConnected();
   } catch {
     // Ignore away signaling failures during shutdown.
@@ -620,8 +625,10 @@ function setConnection(connected) {
     state.partnerPresence = "present";
     renderWidget();
     markUserActive();
+    startPresenceHeartbeat();
   } else if (app.querySelector(".main-widget")) {
     clearIdleTimer();
+    stopPresenceHeartbeat();
     state.partnerPresence = "away";
     renderWidget();
   }
@@ -679,13 +686,33 @@ function clearIdleTimer() {
   state.idleTimer = null;
 }
 
+function stopPresenceHeartbeat() {
+  clearInterval(state.presenceHeartbeatTimer);
+  state.presenceHeartbeatTimer = null;
+}
+
+function sendCurrentPresence() {
+  if (!state.connected) return;
+  bridge
+    .send({ type: "send-presence", state: state.localPresence })
+    .catch(showError);
+}
+
+function startPresenceHeartbeat() {
+  stopPresenceHeartbeat();
+  if (!state.connected) return;
+
+  sendCurrentPresence();
+
+  state.presenceHeartbeatTimer = setInterval(() => {
+    sendCurrentPresence();
+  }, PRESENCE_HEARTBEAT_MS);
+}
+
 function setLocalPresence(presence) {
   if (state.localPresence === presence) return;
   state.localPresence = presence;
-
-  if (state.connected) {
-    bridge.send({ type: "send-presence", state: presence }).catch(showError);
-  }
+  sendCurrentPresence();
 }
 
 function armIdleTimer() {
@@ -693,11 +720,18 @@ function armIdleTimer() {
   if (!state.connected) return;
 
   state.idleTimer = setTimeout(() => {
-    setLocalPresence("idle");
+    const idleForMs = Date.now() - state.lastActivityAt;
+    if (idleForMs >= IDLE_AFTER_MS) {
+      setLocalPresence("idle");
+      return;
+    }
+
+    armIdleTimer();
   }, IDLE_AFTER_MS);
 }
 
 function markUserActive() {
+  state.lastActivityAt = Date.now();
   setLocalPresence("present");
 
   armIdleTimer();
@@ -717,15 +751,23 @@ async function sendAwayIfConnected() {
 
 function enablePresenceTracking() {
   const activityEvents = [
+    "pointermove",
+    "pointerdown",
+    "pointerup",
     "mousemove",
     "mousedown",
+    "mouseup",
     "keydown",
+    "keyup",
     "touchstart",
     "wheel",
   ];
 
   for (const eventName of activityEvents) {
-    window.addEventListener(eventName, markUserActive, { passive: true });
+    document.addEventListener(eventName, markUserActive, {
+      passive: true,
+      capture: true,
+    });
   }
 
   window.addEventListener("focus", markUserActive);

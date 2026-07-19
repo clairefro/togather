@@ -1,7 +1,36 @@
 :root {
-  color: #d7ece3;
+  --color-text: #e3f1eb;
+  --color-text-soft: #c8ddd3;
+  --color-muted: #9fbab0;
+  --color-label: #bdd5cb;
+
+  --surface-main-start: rgb(47 40 73 / 96%);
+  --surface-main-end: rgb(20 17 34 / 96%);
+  --surface-input: #1d1a33;
+  --surface-panel: #231f3b;
+  --surface-message: #302952;
+  --surface-joined-ghost: rgb(20 17 34 / 1%);
+  --surface-joined-soft: rgb(30 24 53 / 48%);
+  --surface-joined-softer: rgb(30 24 53 / 26%);
+
+  --accent: #b8b6ff;
+  --accent-soft: #d7d5ff;
+  --accent-mid: #c7c5ff;
+  --accent-rgb: 184 182 255;
+  --accent-contrast: #24213f;
+
+  --glass-9: rgb(255 255 255 / 9%);
+  --glass-10: rgb(255 255 255 / 10%);
+  --glass-14: rgb(255 255 255 / 14%);
+  --glass-15: rgb(255 255 255 / 15%);
+  --glass-16: rgb(255 255 255 / 16%);
+  --glass-20: rgb(255 255 255 / 20%);
+  --glass-24: rgb(255 255 255 / 24%);
+  --glass-30: rgb(255 255 255 / 30%);
+
+  color: var(--color-text);
   font:
-    13px/1.35 ui-rounded,
+    14px/1.35 ui-rounded,
     "SF Pro Rounded",
     "Nunito",
     system-ui,
@@ -38,9 +67,15 @@ button {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid rgb(146 197 171 / 24%);
+  isolation: isolate;
+  clip-path: inset(0 round 24px);
+  border: 1px solid rgb(var(--accent-rgb) / 30%);
   border-radius: 24px;
-  background: linear-gradient(150deg, rgb(25 52 39 / 96%), rgb(10 24 17 / 96%));
+  background: linear-gradient(
+    150deg,
+    var(--surface-main-start),
+    var(--surface-main-end)
+  );
   box-shadow:
     0 18px 45px rgb(4 8 10 / 48%),
     inset 0 1px 0 rgb(255 255 255 / 12%);
@@ -52,8 +87,8 @@ button {
   gap: 6px;
   height: 35px;
   padding: 0 13px;
-  color: #b7d0c4;
-  font-size: 11px;
+  color: var(--color-text-soft);
+  font-size: 12px;
   letter-spacing: 0.04em;
   user-select: none;
   cursor: grab;
@@ -69,17 +104,17 @@ button {
   flex: 1;
   height: 25px;
   padding: 0;
-  border: 1px dashed rgb(129 230 188 / 74%);
+  border: 1px dashed rgb(var(--accent-rgb) / 76%);
   border-radius: 8px;
-  background: rgb(255 255 255 / 14%);
+  background: var(--glass-14);
 }
 .brand-mark {
-  color: #8de9c8;
+  color: var(--accent-soft);
   font-size: 22px;
   line-height: 1;
 }
 .drag-dots {
-  color: #86a89a;
+  color: #9bb8ad;
   font-size: 16px;
   transform: rotate(90deg);
 }
@@ -107,8 +142,8 @@ button {
 }
 .muted {
   margin: 0 0 4px;
-  color: #9eb8ab;
-  font-size: 10px;
+  color: var(--color-muted);
+  font-size: 11px;
 }
 .primary,
 .quiet {
@@ -120,8 +155,8 @@ button {
     filter 0.15s;
 }
 .primary {
-  color: #123126;
-  background: linear-gradient(115deg, #72ddb4, #baf7dc);
+  color: var(--accent-contrast);
+  background: linear-gradient(115deg, var(--accent), var(--accent-soft));
   font-weight: 750;
 }
 .primary:hover {
@@ -136,16 +171,16 @@ button {
 }
 .quiet {
   margin-top: 7px;
-  color: #c2ddd0;
-  background: rgb(255 255 255 / 9%);
+  color: #d2e4dc;
+  background: var(--glass-9);
 }
 .quiet:hover {
-  background: rgb(255 255 255 / 15%);
+  background: var(--glass-15);
 }
 .character {
   width: clamp(66px, 28vw, 91px);
   height: clamp(66px, 28vw, 91px);
-  color: #87a396;
+  color: #8caea1;
 }
 .character svg {
   width: 100%;
@@ -159,7 +194,7 @@ button {
   stroke-width: 3;
 }
 .character .eye {
-  fill: #0f241a;
+  fill: #10251e;
   stroke: none;
 }
 .character path {
@@ -167,25 +202,25 @@ button {
   stroke-linecap: round;
 }
 .character.present {
-  color: #7de3bf;
+  color: var(--accent);
   animation: float 3.2s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px #7de3bfaa);
+  filter: drop-shadow(0 0 10px rgb(var(--accent-rgb) / 67%));
 }
 .character.idle {
-  color: #9cccba;
+  color: var(--accent-mid);
   animation: drift 5s ease-in-out infinite;
-  filter: drop-shadow(0 0 11px #9cccbaaa);
+  filter: drop-shadow(0 0 11px rgb(var(--accent-rgb) / 53%));
 }
 .character.away {
-  color: #668475;
+  color: #6f8c81;
   opacity: 0.62;
   animation: drift 5s ease-in-out infinite;
 }
 .field-label {
   align-self: flex-start;
   margin: 1px 0 4px;
-  color: #b5d0c2;
-  font-size: 11px;
+  color: var(--color-label);
+  font-size: 12px;
 }
 .code-input-wrap {
   position: relative;
@@ -195,18 +230,18 @@ button {
 .code-input {
   width: 100%;
   padding: 9px 32px 9px 9px;
-  border: 1px solid #4a6658;
+  border: 1px solid #4d6c61;
   border-radius: 9px;
   outline: none;
-  color: #e0f0e8;
-  background: #122017;
+  color: #e6f2ed;
+  background: var(--surface-input);
   font:
-    10px ui-monospace,
+    11px ui-monospace,
     monospace;
 }
 .code-input:focus {
-  border-color: #8ce9c9;
-  box-shadow: 0 0 0 2px #8ce9c944;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 34%);
 }
 .clear-code {
   position: absolute;
@@ -217,14 +252,14 @@ button {
   margin: 0;
   padding: 0;
   border-radius: 50%;
-  color: #d0eadf;
-  background: rgb(255 255 255 / 14%);
+  color: #d8ece4;
+  background: var(--glass-14);
   font-size: 14px;
   line-height: 1;
   transform: translateY(-50%);
 }
 .clear-code:hover {
-  background: rgb(255 255 255 / 24%);
+  background: var(--glass-24);
 }
 .error {
   width: 100%;
@@ -234,7 +269,7 @@ button {
   border-radius: 8px;
   color: #ffd7dd;
   background: rgb(96 38 48 / 45%);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.35;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -252,10 +287,10 @@ button {
   padding: 7px;
   overflow: hidden;
   border-radius: 8px;
-  color: #c8f0de;
-  background: #102018;
+  color: #e1dfff;
+  background: var(--surface-input);
   font:
-    9px/1.35 ui-monospace,
+    10px/1.35 ui-monospace,
     monospace;
   overflow-wrap: anywhere;
 }
@@ -264,23 +299,23 @@ button {
   width: 56px;
   height: 56px;
   place-items: center;
-  border: 1px solid #84e4c0;
+  border: 1px solid var(--accent);
   border-radius: 50%;
-  color: #b1f3d8;
+  color: #d9d7ff;
   font-size: 25px;
   animation: pulse 1.8s ease-out infinite;
 }
 .waiting {
   margin: 10px 0 0;
-  color: #abc7b9;
-  font-size: 10px;
+  color: #afc9bf;
+  font-size: 11px;
 }
 .waiting i {
   display: inline-block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #85e4c0;
+  background: var(--accent);
   animation: blink 1.2s infinite;
 }
 .booting {
@@ -288,14 +323,14 @@ button {
   align-items: center;
   gap: 6px;
   margin: 10px 0 0;
-  color: #b7d0c3;
-  font-size: 11px;
+  color: #c2d9d0;
+  font-size: 12px;
 }
 .booting span {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #88e6c3;
+  background: var(--accent);
   animation: blink 1s infinite;
 }
 .main-widget {
@@ -303,16 +338,16 @@ button {
 }
 body.joined-transparent .main-widget {
   border-color: transparent;
-  background: transparent;
+  background: var(--surface-joined-ghost);
   box-shadow: none;
   backdrop-filter: none;
 }
 body.joined-transparent .main-widget .drag-region {
-  border-color: rgb(129 230 188 / 70%);
-  background: rgb(12 28 20 / 48%);
+  border-color: rgb(var(--accent-rgb) / 74%);
+  background: var(--surface-joined-soft);
 }
 body.joined-transparent .main-widget .chat-button {
-  background: rgb(12 28 20 / 26%);
+  background: var(--surface-joined-softer);
 }
 .icon-button {
   display: grid;
@@ -321,12 +356,12 @@ body.joined-transparent .main-widget .chat-button {
   place-items: center;
   padding: 0;
   border-radius: 50%;
-  color: #d4ebe1;
-  background: rgb(255 255 255 / 20%);
+  color: #e1efe9;
+  background: var(--glass-20);
   font-size: 16px;
 }
 .icon-button:hover {
-  background: rgb(255 255 255 / 30%);
+  background: var(--glass-30);
 }
 .presence-body {
   display: flex;
@@ -346,25 +381,25 @@ body.joined-transparent .main-widget .chat-button {
   align-items: center;
   gap: 6px;
   margin-top: 10px;
-  color: #d3e8df;
-  font-size: 12px;
+  color: #dcece5;
+  font-size: 13px;
 }
 .status-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #6d8679;
+  background: #708d82;
 }
 .present .status-dot {
-  background: #75e0ba;
-  box-shadow: 0 0 8px #75e0ba;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
 }
 .idle .status-dot {
-  background: #9bcbba;
-  box-shadow: 0 0 8px #9bcbba;
+  background: var(--accent-mid);
+  box-shadow: 0 0 8px var(--accent-mid);
 }
 .away .status-dot {
-  background: #697d71;
+  background: #738c83;
 }
 .main-widget footer {
   margin: 0 12px 12px;
@@ -373,16 +408,16 @@ body.joined-transparent .main-widget .chat-button {
   width: 100%;
   padding: 9px;
   border-radius: 11px;
-  color: #d2e9df;
-  background: rgb(255 255 255 / 10%);
+  color: #deece7;
+  background: var(--glass-10);
   text-align: left;
 }
 .chat-button:hover {
-  background: rgb(255 255 255 / 16%);
+  background: var(--glass-16);
 }
 .chat-button b {
   float: right;
-  color: #86e7c4;
+  color: #89dfbf;
 }
 .chat-popover {
   position: absolute;
@@ -391,18 +426,18 @@ body.joined-transparent .main-widget .chat-button {
   left: 7px;
   height: min(205px, calc(100% - 14px));
   padding: 10px;
-  border: 1px solid #48695b;
+  border: 1px solid #4a675d;
   border-radius: 16px;
   overflow: hidden;
-  background: #13251b;
+  background: var(--surface-panel);
   box-shadow: 0 12px 28px #071216aa;
 }
 .chat-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #cee6dc;
-  font-size: 11px;
+  color: #d8ebe3;
+  font-size: 12px;
 }
 .chat-header .icon-button {
   width: 22px;
@@ -420,19 +455,19 @@ body.joined-transparent .main-widget .chat-button {
   margin: 5px 0;
   padding: 6px 8px;
   border-radius: 9px;
-  background: #234136;
-  font-size: 11px;
+  background: var(--surface-message);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 .message.self {
   margin-left: auto;
-  color: #123229;
-  background: #7de2bf;
+  color: var(--accent-contrast);
+  background: var(--accent);
 }
 .empty-chat {
-  color: #96b4a7;
+  color: #9cb8ad;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
 }
 .chat-form {
   display: flex;
@@ -442,26 +477,26 @@ body.joined-transparent .main-widget .chat-button {
   min-width: 0;
   flex: 1;
   padding: 8px;
-  border: 1px solid #436357;
+  border: 1px solid #45645a;
   border-radius: 8px;
   outline: 0;
   color: #fff;
-  background: #101f17;
+  background: #1b1830;
 }
 .chat-form input:focus {
-  border-color: #86e7c4;
+  border-color: var(--accent);
 }
 .chat-form button {
   width: 31px;
   border-radius: 8px;
-  color: #143429;
-  background: #79e0bc;
+  color: var(--accent-contrast);
+  background: var(--accent);
   font-weight: 800;
 }
 .resize-grip {
   position: fixed;
-  right: 4px;
-  bottom: 4px;
+  right: 8px;
+  bottom: 8px;
   width: 22px;
   height: 22px;
   border: 0;
@@ -474,9 +509,9 @@ body.joined-transparent .main-widget .chat-button {
 .resize-grip::after {
   content: "◢";
   position: absolute;
-  right: 1px;
-  bottom: 0;
-  color: rgb(131 230 189 / 88%);
+  right: 3px;
+  bottom: 2px;
+  color: rgb(var(--accent-rgb) / 92%);
   font-size: 11px;
   line-height: 1;
   pointer-events: none;
@@ -499,10 +534,10 @@ body.joined-transparent .main-widget .chat-button {
 }
 @keyframes pulse {
   70% {
-    box-shadow: 0 0 0 13px #84e4c000;
+    box-shadow: 0 0 0 13px rgb(var(--accent-rgb) / 0%);
   }
   100% {
-    box-shadow: 0 0 0 0 #84e4c000;
+    box-shadow: 0 0 0 0 rgb(var(--accent-rgb) / 0%);
   }
 }
 @keyframes blink {
