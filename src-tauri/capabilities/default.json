@@ -16,7 +16,7 @@
       "identifier": "shell:allow-spawn",
       "allow": [
         {
-          "name": "bare-worker",
+          "name": "binaries/bare-worker",
           "sidecar": true,
           "args": [
             {

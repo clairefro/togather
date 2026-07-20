@@ -183,9 +183,11 @@ const bridge = {
           }
         }, 2500);
 
-        const command = BareWorkerCommand.create("bare-worker", [
-          candidatePath,
-        ]);
+        const command = BareWorkerCommand.create(
+          "binaries/bare-worker",
+          [candidatePath],
+          { sidecar: true },
+        );
         command.stdout.on("data", (chunk) => {
           state.buffer += ioPayloadToString(chunk);
           const lines = state.buffer.split("\n");
