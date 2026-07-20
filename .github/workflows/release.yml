@@ -14,7 +14,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - platform: macos-13
+            bundles: dmg
+          - platform: macos-14
             bundles: dmg
           - platform: ubuntu-22.04
             bundles: deb,rpm
