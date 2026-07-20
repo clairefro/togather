@@ -30,7 +30,29 @@ fn get_system_idle_seconds() -> Option<f64> {
         };
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        use std::mem::size_of;
+        use windows_sys::Win32::System::SystemInformation::GetTickCount;
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+            GetLastInputInfo, LASTINPUTINFO,
+        };
+
+        let mut last_input = LASTINPUTINFO {
+            cbSize: size_of::<LASTINPUTINFO>() as u32,
+            dwTime: 0,
+        };
+
+        let success = unsafe { GetLastInputInfo(&mut last_input) };
+        if success == 0 {
+            return None;
+        }
+
+        let elapsed_ms = unsafe { GetTickCount() }.wrapping_sub(last_input.dwTime);
+        return Some(f64::from(elapsed_ms) / 1_000.0);
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         None
     }

@@ -560,6 +560,12 @@ body.joined-transparent .main-widget .chat-button {
   white-space: nowrap;
   text-align: center;
 }
+.peer-idle-since {
+  color: #a9c0b7;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+}
 @media (max-width: 360px), (max-height: 360px) {
   .presence-body {
     padding: 4px 6px;
@@ -595,6 +601,10 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-caption-text {
     font-size: 12px;
+  }
+
+  .peer-idle-since {
+    font-size: 9px;
   }
 }
 .peer-empty {

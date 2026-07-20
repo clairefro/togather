@@ -342,7 +342,12 @@ function ensurePeer(peerId) {
   const existing = state.peers.get(peerId);
   if (existing) return existing;
 
-  const created = { presence: "away", displayName: "", lastSeenAt: Date.now() };
+  const created = {
+    presence: "away",
+    displayName: "",
+    lastSeenAt: Date.now(),
+    idleSinceAt: null,
+  };
   state.peers.set(peerId, created);
   return created;
 }
@@ -665,6 +670,18 @@ function formatChatTime(timestamp) {
   return `[${hh}:${mm}]`;
 }
 
+function formatLocalTimestamp(timestamp) {
+  const date = new Date(
+    typeof timestamp === "number" && Number.isFinite(timestamp)
+      ? timestamp
+      : Date.now(),
+  );
+
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 function escapeAttribute(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
 }
@@ -717,8 +734,12 @@ function bindNameMenu() {
     state.menuOpen = !state.menuOpen;
     popover.hidden = !state.menuOpen;
     if (state.menuOpen) {
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+      requestAnimationFrame(() => {
+        if (!state.menuOpen || popover.hidden) return;
+
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      });
     }
   });
 
@@ -1629,6 +1650,8 @@ bridge.onEvent((event) => {
     const peer = ensurePeer(event.peer);
     peer.presence = event.state;
     peer.lastSeenAt = Date.now();
+    peer.idleSinceAt =
+      event.state === "idle" ? (peer.idleSinceAt ?? Date.now()) : null;
     if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
 
     setConnection(activePeerCount() > 0);
