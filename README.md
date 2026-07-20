@@ -53,25 +53,30 @@ If your OS is not listed in release assets yet, check back later or build locall
 
 - A GitHub Actions workflow is configured at
   `.github/workflows/release.yml`.
-- Pushing a tag like `v0.1.0` triggers cross-platform Tauri builds
+- Pushing a tag like `v0.1.1` triggers cross-platform Tauri builds
   (macOS, Windows, Linux).
 - The workflow creates a **draft GitHub Release** and uploads generated
   artifacts automatically.
 
-### Publish a new release
+### Create a release
 
-1. Bump versions in:
-   - `package.json`
-   - `src-tauri/tauri.conf.json`
-   - `src-tauri/Cargo.toml`
+1. Pick the next version (example: `0.1.1`) and run the version bump script (`scripts/bump-version.mjs`):
+
+```bash
+npm run bump:version -- 0.1.1
+```
+
+This updates:
+ - root `package.json` (`version` field)
+ - `src-tauri/tauri.conf.json`
+ - `src-tauri/Cargo.toml`
 2. Build locally once before tagging:
 
 ```bash
 npm run build
 ```
 
-3. Commit and push.
-4. Create and push a version tag:
+3. Commit, push, and create a matching tag (`v0.1.1` must match version `0.1.1`):
 
 ```bash
 git add .
@@ -81,8 +86,8 @@ git tag v0.1.1
 git push origin v0.1.1
 ```
 
-5. Open the Actions tab and confirm the `Release` workflow succeeds.
-6. Open GitHub Releases, review the draft release notes and uploaded assets,
+4. Open the Actions tab and confirm the `Release` workflow succeeds.
+5. Open GitHub Releases, review the draft release notes and uploaded assets,
    then publish it.
 
 ### Updating after first release
