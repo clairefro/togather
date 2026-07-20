@@ -13,7 +13,18 @@ Get the newest build from the [latest GitHub release](https://github.com/clairef
 1. Open the [latest release page](https://github.com/clairefro/togather/releases/latest).
 2. Download the macOS `.dmg` asset.
 3. Open the `.dmg` and drag `togather` into Applications.
-4. Launch from Applications.
+4. Launch from Applications. If macOS says the app is damaged or cannot be
+   opened, open Terminal and run:
+
+```bash
+xattr -cr /Applications/togather.app
+```
+
+5. Launch `togather` from Applications again.
+
+Only use this workaround for a copy downloaded directly from this project's
+GitHub release page. The app is currently distributed without Apple Developer
+ID signing or notarization, so macOS may quarantine downloaded copies.
 
 ### Windows
 
