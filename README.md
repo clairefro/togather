@@ -4,6 +4,33 @@ A small, serverless desktop telepresence widget for two or more people. The nati
 shell is Tauri v2, the peer worker runs under Bare, and discovery/connections
 use Hyperswarm.
 
+## Download the latest release
+
+Get the newest build from the [latest GitHub release](https://github.com/clairefro/togather/releases/latest).
+
+### macOS
+
+1. Open the [latest release page](https://github.com/clairefro/togather/releases/latest).
+2. Download the macOS `.dmg` asset.
+3. Open the `.dmg` and drag `togather` into Applications.
+4. Launch from Applications.
+
+### Windows
+
+1. Open the [latest release page](https://github.com/clairefro/togather/releases/latest).
+2. Download the Windows installer (`.msi` or `.exe`).
+3. Run the installer and complete setup.
+4. Launch `togather` from Start Menu.
+
+### Linux
+
+1. Open the [latest release page](https://github.com/clairefro/togather/releases/latest).
+2. Download the Linux asset for your distro (`.AppImage` / `.deb` / other).
+3. Install or run according to your distro conventions.
+4. Launch `togather`.
+
+If your OS is not listed in release assets yet, check back later or build locally.
+
 ## Project shape
 
 - `renderer/` — plain HTML, CSS, and browser JavaScript. It owns the Tauri
@@ -37,15 +64,32 @@ use Hyperswarm.
    - `package.json`
    - `src-tauri/tauri.conf.json`
    - `src-tauri/Cargo.toml`
-2. Commit and push.
-3. Create and push a version tag:
+2. Build locally once before tagging:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+npm run build
 ```
 
-4. Open GitHub Releases, review the draft, then publish it.
+3. Commit and push.
+4. Create and push a version tag:
+
+```bash
+git add .
+git commit -m "release: v0.1.1"
+git push origin main
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+5. Open the Actions tab and confirm the `Release` workflow succeeds.
+6. Open GitHub Releases, review the draft release notes and uploaded assets,
+   then publish it.
+
+### Updating after first release
+
+- Repeat the same flow with a new version and tag (`v0.1.2`, `v0.1.3`, etc).
+- This project currently uses **manual app updates** for users:
+  download and install the latest release artifact from GitHub Releases.
 
 ## Platform behavior
 
