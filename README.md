@@ -67,9 +67,11 @@ npm run bump:version -- 0.1.1
 ```
 
 This updates:
- - root `package.json` (`version` field)
- - `src-tauri/tauri.conf.json`
- - `src-tauri/Cargo.toml`
+
+- root `package.json` (`version` field)
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+
 2. Build locally once before tagging:
 
 ```bash

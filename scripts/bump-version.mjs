@@ -88,8 +88,12 @@ async function main() {
 
   console.log("Updated versions:");
   console.log(`- package.json: ${previous.packageJson} -> ${nextVersion}`);
-  console.log(`- src-tauri/tauri.conf.json: ${previous.tauriConfig} -> ${nextVersion}`);
-  console.log(`- src-tauri/Cargo.toml: ${previous.cargoToml} -> ${nextVersion}`);
+  console.log(
+    `- src-tauri/tauri.conf.json: ${previous.tauriConfig} -> ${nextVersion}`,
+  );
+  console.log(
+    `- src-tauri/Cargo.toml: ${previous.cargoToml} -> ${nextVersion}`,
+  );
 }
 
 main().catch((error) => {
