@@ -8,7 +8,7 @@
     "build": "tauri build",
     "tauri": "tauri",
     "bump:version": "node scripts/bump-version.mjs",
-    "release:local": "node scripts/release-local.mjs"
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"

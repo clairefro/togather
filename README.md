@@ -60,36 +60,24 @@ If your OS is not listed in release assets yet, check back later or build locall
 
 ### Create a release
 
-1. Pick the next version (example: `0.1.1`) and run the version bump script (`scripts/bump-version.mjs`):
+1. Run the local release automation script with the next version (example: `0.1.5`):
 
 ```bash
-npm run bump:version -- 0.1.1
+npm run release -- 0.1.5
 ```
 
-This updates:
+This will:
 
 - root `package.json` (`version` field)
 - `src-tauri/tauri.conf.json`
 - `src-tauri/Cargo.toml`
 
-2. Build locally once before tagging:
+- commit the changes
+- create the matching tag (`v0.1.5`)
+- push `main` and the tag to `origin`
 
-```bash
-npm run build
-```
-
-3. Commit, push, and create a matching tag (`v0.1.1` must match version `0.1.1`):
-
-```bash
-git add .
-git commit -m "release: v0.1.1"
-git push origin main
-git tag v0.1.1
-git push origin v0.1.1
-```
-
-4. Open the Actions tab and confirm the `Release` workflow succeeds.
-5. Open GitHub Releases, review the draft release notes and uploaded assets,
+2. Open the Actions tab and confirm the `Release` workflow succeeds.
+3. Open GitHub Releases, review the draft release notes and uploaded assets,
    then publish it.
 
 ### Updating after first release
