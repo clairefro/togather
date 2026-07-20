@@ -1,13 +1,14 @@
 {
   "name": "togather",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "author": "Claire Froelich",
   "description": "Peer-to-peer telepresence widget",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
     "tauri": "tauri",
-    "bump:version": "node scripts/bump-version.mjs"
+    "bump:version": "node scripts/bump-version.mjs",
+    "release:local": "node scripts/release-local.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0"
