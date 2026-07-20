@@ -316,6 +316,10 @@ function receivePeerMessage(line, fromPeer) {
     } catch {
       // Ignore invalid profile payloads from peers.
     }
+  } else if (message?.type === "typing") {
+    emit({ type: "typing", peer: fromPeer });
+  } else if (message?.type === "stopped-typing") {
+    emit({ type: "stopped-typing", peer: fromPeer });
   }
 }
 
@@ -392,6 +396,16 @@ async function handleCommand(command) {
 
       const text = command.text.trim().slice(0, MAX_CHAT_LENGTH);
       if (text) sendToPeers({ type: "chat", text, ts: Date.now() });
+      return;
+    }
+
+    case "typing": {
+      sendToPeers({ type: "typing" });
+      return;
+    }
+
+    case "stopped-typing": {
+      sendToPeers({ type: "stopped-typing" });
       return;
     }
 

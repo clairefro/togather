@@ -34,3 +34,9 @@ use Hyperswarm.
   silently blocking input.
 - When click-through is enabled, press **Escape** to make the widget interactive
   again.
+
+## TODO
+
+- [ ] display name validation (alphanumeric - \_)
+
+- [ ] custom avatar base64
