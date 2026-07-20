@@ -22,6 +22,31 @@ use Hyperswarm.
   `npm install --prefix workers`.
 - Run the desktop app with `npm run dev`.
 
+## Release builds
+
+- A GitHub Actions workflow is configured at
+  `.github/workflows/release.yml`.
+- Pushing a tag like `v0.1.0` triggers cross-platform Tauri builds
+  (macOS, Windows, Linux).
+- The workflow creates a **draft GitHub Release** and uploads generated
+  artifacts automatically.
+
+### Publish a new release
+
+1. Bump versions in:
+   - `package.json`
+   - `src-tauri/tauri.conf.json`
+   - `src-tauri/Cargo.toml`
+2. Commit and push.
+3. Create and push a version tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+4. Open GitHub Releases, review the draft, then publish it.
+
 ## Platform behavior
 
 - **macOS:** the app enables Tauri's `macOSPrivateApi` for transparent windows
