@@ -14,14 +14,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-13
+          - platform: macos-15-intel
             bundles: dmg
-          - platform: macos-14
+            target: x86_64-apple-darwin
+            args: --target x86_64-apple-darwin
+          - platform: macos-15
             bundles: dmg
+            target: aarch64-apple-darwin
+            args: --target aarch64-apple-darwin
           - platform: ubuntu-22.04
             bundles: deb,rpm
+            args: ""
           - platform: windows-latest
             bundles: msi
+            args: ""
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -51,6 +57,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install macOS Rust target
+        if: startsWith(matrix.platform, 'macos-')
+        run: rustup target add ${{ matrix.target }}
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -63,7 +73,7 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: 1
           GITHUB_TOKEN: ${{ secrets.TAURI_RELEASE_TOKEN }}
         with:
-          args: --bundles ${{ matrix.bundles }}
+          args: --bundles ${{ matrix.bundles }} ${{ matrix.args }}
           tagName: ${{ github.ref_name }}
           releaseName: "togather ${{ github.ref_name }}"
           releaseBody: "Automated release for ${{ github.ref_name }}."

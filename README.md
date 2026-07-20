@@ -40,6 +40,14 @@ ID signing or notarization, so macOS may quarantine downloaded copies.
 3. Install or run according to your distro conventions.
 4. Launch `togather`.
 
+### Chromebooks
+
+Chromebooks are not an officially supported target. The Linux build may work on
+an Intel Chromebook with **Linux development environment** enabled, but the
+current Linux release is x86_64/amd64 only and will not run on ARM Chromebooks.
+ChromeOS may also restrict always-on-top, transparent, or click-through window
+behavior.
+
 If your OS is not listed in release assets yet, check back later or build locally.
 
 ## Project shape
