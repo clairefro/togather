@@ -39,6 +39,9 @@
     ],
     "resources": {
       "../workers": "workers"
-    }
+    },
+    "externalBin": [
+      "binaries/bare-worker"
+    ]
   }
 }

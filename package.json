@@ -4,7 +4,9 @@
   "author": "Claire Froelich",
   "description": "Peer-to-peer telepresence widget",
   "scripts": {
+    "predev": "node scripts/prepare-bare-sidecar.mjs",
     "dev": "tauri dev",
+    "prebuild": "node scripts/prepare-bare-sidecar.mjs",
     "build": "tauri build",
     "tauri": "tauri",
     "bump:version": "node scripts/bump-version.mjs",

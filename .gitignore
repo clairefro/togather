@@ -4,6 +4,7 @@ workers/node_modules/
 
 # Tauri / Rust build output
 src-tauri/target/
+src-tauri/binaries/
 
 # Logs
 npm-debug.log*
