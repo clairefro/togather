@@ -1,3 +1,27 @@
+// Keep the window visible during startup; we switch back to transparent after first render.
+document.body.style.background = "#161a20";
+
+function renderBootError(message) {
+  const root = document.querySelector("#app");
+  if (!root) return;
+  root.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;padding:18px;color:#e6f0eb;font:13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;background:#161a20;">Startup error: ${String(message)}</div>`;
+}
+
+window.addEventListener("error", (event) => {
+  renderBootError(event?.error?.message || event?.message || "Unknown error");
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event?.reason;
+  const message =
+    typeof reason === "string"
+      ? reason
+      : reason && typeof reason.message === "string"
+        ? reason.message
+        : "Promise rejected during startup";
+  renderBootError(message);
+});
+
 const tauri = window.__TAURI__;
 const { invoke, Channel } = tauri.core;
 const { PhysicalPosition, PhysicalSize } = tauri.dpi;
@@ -77,14 +101,12 @@ class BareWorkerCommand extends LocalEventEmitter {
 
 const appWindow = getCurrentWindow();
 const app = document.querySelector("#app");
-const WINDOW_SIZE_KEY = "togather.window-size.v1";
-const WINDOW_POSITION_KEY = "togather.window-position.v1";
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const DISPLAY_NAME_KEY = "togather.display-name.v1";
-const ZOOM_LEVEL_KEY = "togather.zoom-level.v1";
-const ONBOARDING_WINDOW_WIDTH = 300;
-const ONBOARDING_WINDOW_HEIGHT = 620;
-const MIN_ZOOM = 0.8;
+const ZOOM_LEVEL_KEY = "togather.zoom-level.v2";
+const ONBOARDING_WINDOW_WIDTH = 440;
+const ONBOARDING_WINDOW_HEIGHT = 800;
+const MIN_ZOOM = 1.0;
 const MAX_ZOOM = 1.6;
 const ZOOM_STEP = 0.1;
 const JOIN_WAIT_TIMEOUT_MS = 20000;
@@ -125,6 +147,7 @@ const state = {
   systemIdleMs: 0,
   joinWaitTimer: null,
   startingPromise: null,
+  appVersion: "",
 };
 
 function ioPayloadToString(payload) {
@@ -145,6 +168,32 @@ function normalizeError(input) {
   }
 
   return serialized;
+}
+
+function menuVersionLabel() {
+  return state.appVersion ? `v${state.appVersion}` : "";
+}
+
+function applyMenuVersionLabel() {
+  const label = menuVersionLabel();
+  for (const node of app.querySelectorAll("[data-app-version]")) {
+    node.textContent = label;
+  }
+}
+
+async function loadAppVersion() {
+  try {
+    const version = await tauri.app?.getVersion?.();
+    if (typeof version !== "string") return;
+
+    const normalized = version.trim();
+    if (!normalized) return;
+
+    state.appVersion = normalized;
+    applyMenuVersionLabel();
+  } catch {
+    // Version is optional in the menu when unavailable.
+  }
 }
 
 async function workerPathCandidates() {
@@ -343,7 +392,7 @@ function ensurePeer(peerId) {
   if (existing) return existing;
 
   const created = {
-    presence: "away",
+    presence: "present",
     displayName: "",
     lastSeenAt: Date.now(),
     idleSinceAt: null,
@@ -367,16 +416,16 @@ function activePeerCount() {
 }
 
 function aggregatePeerPresence() {
-  if (!activePeerCount()) return "away";
+  if (!activePeerCount()) return "idle";
 
   let hasIdle = false;
   for (const peerId of activePeerIds()) {
-    const presence = state.peers.get(peerId)?.presence ?? "away";
+    const presence = state.peers.get(peerId)?.presence ?? "present";
     if (presence === "present") return "present";
     if (presence === "idle") hasIdle = true;
   }
 
-  return hasIdle ? "idle" : "away";
+  return hasIdle ? "idle" : "present";
 }
 
 function bindDragHandle() {
@@ -477,6 +526,13 @@ function bindResizeHandle() {
   resizeGrip.addEventListener("pointercancel", endResize);
 }
 
+function moreMenuIconSvg() {
+  return '<svg class="more-menu-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false"><circle cx="4" cy="8" r="1.25" fill="currentColor"/><circle cx="8" cy="8" r="1.25" fill="currentColor"/><circle cx="12" cy="8" r="1.25" fill="currentColor"/></svg>';
+}
+function copyIconSvg() {
+  return '<img class="copy-icon" src="assets/copy.svg" alt="" aria-hidden="true">';
+}
+
 function renderOnboarding(mode = "choose") {
   state.inviteCode = "";
   if (mode === "choose") {
@@ -500,7 +556,8 @@ function renderOnboarding(mode = "choose") {
     : "";
   const chooseContent = `${inlineNameEditor}<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button>${enterCodeButton}${cancelCreateButton}${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">...</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="character away"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">⎘</button></div><p class="menu-meta">${activePeerCount()} ${activePeerCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="character idle"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">⎘</button></div><p class="menu-meta">${activePeerCount()} ${activePeerCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  applyMenuVersionLabel();
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
@@ -597,12 +654,23 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code">${state.inviteCode}</div><button class="primary" data-action="copy">Copy code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   app
-    .querySelector('[data-action="copy"]')
+    .querySelector('[data-action="copy-invite"]')
     .addEventListener("click", async () => {
-      await navigator.clipboard.writeText(state.inviteCode);
-      app.querySelector('[data-action="copy"]').textContent = "Copied";
+      try {
+        await navigator.clipboard.writeText(state.inviteCode);
+        const button = app.querySelector('[data-action="copy-invite"]');
+        if (!button) return;
+
+        const original = button.innerHTML;
+        button.innerHTML = "✓";
+        setTimeout(() => {
+          button.innerHTML = original;
+        }, 900);
+      } catch {
+        showError("Could not copy room code.");
+      }
     });
   app
     .querySelector('[data-action="reset"]')
@@ -622,7 +690,6 @@ function label() {
   return {
     present: "Present",
     idle: "Idle",
-    away: "Away",
   }[aggregatePeerPresence()];
 }
 
@@ -712,7 +779,7 @@ function defaultDisplayName() {
 }
 
 function nameEditorPlaceholder() {
-  return "Use random name";
+  return "Enter name (or default random)";
 }
 
 function syncNameEditorControls() {
@@ -767,10 +834,10 @@ function bindNameMenu() {
         const button = app.querySelector('[data-action="copy-room"]');
         if (!button) return;
 
-        const original = button.textContent;
-        button.textContent = "✓";
+        const original = button.innerHTML;
+        button.innerHTML = "✓";
         setTimeout(() => {
-          button.textContent = original;
+          button.innerHTML = original;
         }, 900);
       } catch {
         showError("Could not copy room code.");
@@ -990,7 +1057,7 @@ function renderWidget() {
     .sort((a, b) => peerDisplayName(a).localeCompare(peerDisplayName(b)))
     .map((peerId) => {
       const peer = state.peers.get(peerId);
-      const presence = peer?.presence ?? "away";
+      const presence = peer?.presence ?? "present";
       const caption = peer?.displayName || peerShortId(peerId);
       const characterColor = chatNameColor(peerId);
 
@@ -1007,7 +1074,8 @@ function renderWidget() {
   const menuButtonLabel = "Menu";
   const minimizeButtonLabel = "Minimize";
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">...</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty">No peers connected yet.</p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">⎘</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(defaultDisplayName())}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">&lt;crickets&gt;</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">⎘</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(defaultDisplayName())}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  applyMenuVersionLabel();
   app
     .querySelector('[data-action="chat"]')
     .addEventListener("click", toggleChat);
@@ -1045,7 +1113,6 @@ async function leaveRoom() {
     stopPresenceHeartbeat();
     stopPresenceWatchdog();
     stopSystemIdlePolling();
-    await sendAwayIfConnected();
     await bridge.send({ type: "leave" });
   } catch {
     // Ignore if worker is not running
@@ -1071,7 +1138,6 @@ async function resetPairing() {
   stopPresenceHeartbeat();
   stopPresenceWatchdog();
   stopSystemIdlePolling();
-  await sendAwayIfConnected();
   try {
     await bridge.send({ type: "leave" });
   } catch {
@@ -1098,9 +1164,8 @@ async function exitApp() {
     stopPresenceHeartbeat();
     stopPresenceWatchdog();
     stopSystemIdlePolling();
-    await sendAwayIfConnected();
   } catch {
-    // Ignore away signaling failures during shutdown.
+    // Ignore shutdown-time signaling failures.
   }
 
   try {
@@ -1204,7 +1269,6 @@ function setConnection(connected) {
   state.connected = connected;
   document.body.classList.toggle("joined-transparent", connected);
   if (connected) {
-    applySavedWindowPlacementForJoined();
     clearTimeout(state.joinWaitTimer);
     state.joinWaitTimer = null;
     state.joiningRoom = false;
@@ -1434,18 +1498,6 @@ function markUserActive() {
   armIdleTimer();
 }
 
-async function sendAwayIfConnected() {
-  if (!state.connected) return;
-
-  try {
-    await bridge.send({ type: "send-presence", state: "away" });
-  } catch {
-    // Ignore best-effort away signal failures.
-  }
-
-  state.localPresence = "away";
-}
-
 function enablePresenceTracking() {
   const activityEvents = [
     "pointermove",
@@ -1473,112 +1525,65 @@ function enablePresenceTracking() {
   });
 }
 
-function readSavedWindowSize() {
-  try {
-    const raw = localStorage.getItem(WINDOW_SIZE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw);
-    if (
-      parsed &&
-      Number.isFinite(parsed.width) &&
-      Number.isFinite(parsed.height)
-    ) {
-      return {
-        width: Math.round(parsed.width),
-        height: Math.round(parsed.height),
-      };
-    }
-  } catch {
-    // Ignore corrupt localStorage values.
-  }
-
-  return null;
-}
-
-function readSavedWindowPosition() {
-  try {
-    const raw = localStorage.getItem(WINDOW_POSITION_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw);
-    if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) {
-      return {
-        x: Math.round(parsed.x),
-        y: Math.round(parsed.y),
-      };
-    }
-  } catch {
-    // Ignore corrupt localStorage values.
-  }
-
-  return null;
-}
-
-function saveWindowSize(size) {
-  try {
-    localStorage.setItem(
-      WINDOW_SIZE_KEY,
-      JSON.stringify({ width: size.width, height: size.height }),
-    );
-  } catch {
-    // Ignore persistence failures.
-  }
-}
-
-function saveWindowPosition(position) {
-  try {
-    localStorage.setItem(
-      WINDOW_POSITION_KEY,
-      JSON.stringify({ x: position.x, y: position.y }),
-    );
-  } catch {
-    // Ignore persistence failures.
-  }
-}
-
-function applySavedWindowPlacementForJoined() {
-  const savedSize = readSavedWindowSize();
-  const savedPosition = readSavedWindowPosition();
-
-  if (savedSize) {
-    appWindow
-      .setSize(new PhysicalSize(savedSize.width, savedSize.height))
-      .catch(() => {});
-  }
-
-  if (savedPosition) {
-    appWindow
-      .setPosition(new PhysicalPosition(savedPosition.x, savedPosition.y))
-      .catch(() => {});
-  }
-}
-
-function enableWindowPositionPersistence() {
-  appWindow
-    .onResized(({ payload: size }) => {
-      if (!state.connected) return;
-      saveWindowSize(size);
-    })
-    .catch(() => {});
-
-  appWindow
-    .onMoved(({ payload: position }) => {
-      if (!state.connected) return;
-      saveWindowPosition(position);
-    })
-    .catch(() => {});
-}
-
 function centerWindowOnLaunch() {
-  appWindow
-    .currentMonitor()
-    .then(async (monitor) => {
-      await appWindow.setSize(
-        new PhysicalSize(ONBOARDING_WINDOW_WIDTH, ONBOARDING_WINDOW_HEIGHT),
-      );
+  const targetOnboardingSize = () =>
+    appWindow
+      .setSize(new PhysicalSize(ONBOARDING_WINDOW_WIDTH, ONBOARDING_WINDOW_HEIGHT))
+      .catch(() => {});
 
-      if (!monitor) return;
+  const enforceStartupMinimumSize = () => {
+    const startedAt = Date.now();
+    const enforce = async () => {
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > 2000) return;
+
+      try {
+        const size = await appWindow.outerSize();
+        if (
+          size.width < ONBOARDING_WINDOW_WIDTH ||
+          size.height < ONBOARDING_WINDOW_HEIGHT
+        ) {
+          await targetOnboardingSize();
+        }
+      } catch {
+        // Ignore transient startup measurement failures.
+      }
+
+      setTimeout(enforce, 250);
+    };
+
+    void enforce();
+  };
+
+  const resolveCurrentMonitor = async () => {
+    if (typeof appWindow.currentMonitor === "function") {
+      return appWindow.currentMonitor();
+    }
+
+    if (typeof tauri?.window?.currentMonitor === "function") {
+      return tauri.window.currentMonitor();
+    }
+
+    return null;
+  };
+
+  resolveCurrentMonitor()
+    .then(async (monitor) => {
+      await appWindow.show().catch(() => {});
+      await appWindow.unminimize().catch(() => {});
+      await appWindow.setFocus().catch(() => {});
+      await targetOnboardingSize();
+
+      // Some environments restore previous bounds after startup; enforce once more.
+      setTimeout(() => {
+        void targetOnboardingSize();
+      }, 200);
+      enforceStartupMinimumSize();
+
+      if (!monitor) {
+        await appWindow.center().catch(() => {});
+        return;
+      }
 
       const size = await appWindow.outerSize();
       await appWindow.setPosition(
@@ -1634,8 +1639,9 @@ bridge.onEvent((event) => {
         pushPeerNotice("joined", event.peer);
       }
     } else {
-      peer.presence = "away";
+      peer.presence = "idle";
       peer.lastSeenAt = Date.now();
+      peer.idleSinceAt = Date.now();
       state.connectedPeers.delete(event.peer);
       if (event.peer !== state.selfPeerId) {
         pushPeerNotice("left", event.peer);
@@ -1647,6 +1653,7 @@ bridge.onEvent((event) => {
     renderMessages();
   } else if (event.type === "presence") {
     if (typeof event.peer !== "string") return;
+    if (event.state !== "present" && event.state !== "idle") return;
     const peer = ensurePeer(event.peer);
     peer.presence = event.state;
     peer.lastSeenAt = Date.now();
@@ -1760,8 +1767,9 @@ window.addEventListener("keydown", (event) => {
 });
 state.displayName = readDisplayName();
 renderOnboarding();
+document.body.style.background = "transparent";
+void loadAppVersion();
 centerWindowOnLaunch();
-enableWindowPositionPersistence();
 enablePresenceTracking();
 enableEscapeKeyHandler();
 state.zoomLevel = readSavedZoomLevel();

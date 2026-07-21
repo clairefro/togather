@@ -1,5 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use tauri::Manager;
+
 #[tauri::command]
 fn get_system_idle_seconds() -> Option<f64> {
     #[cfg(target_os = "macos")]
@@ -62,6 +64,31 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![get_system_idle_seconds])
+        .setup(|app| {
+            let window = if let Some(existing) = app.get_webview_window("main") {
+                existing
+            } else {
+                tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+                    .title("togather")
+                    .inner_size(440.0, 800.0)
+                    .min_inner_size(200.0, 200.0)
+                    .decorations(false)
+                    .transparent(true)
+                    .always_on_top(true)
+                    .shadow(false)
+                    .build()
+                    .expect("failed to create main window")
+            };
+
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+                440.0, 800.0,
+            )));
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+
+            Ok(())
+        })
         .run(tauri::generate_context!())
-    .expect("error while running togather");
+        .expect("error while running togather");
 }

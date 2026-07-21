@@ -3,7 +3,7 @@ import b4a from "b4a";
 import crypto from "hypercore-crypto";
 import Hyperswarm from "hyperswarm";
 
-const PRESENCE_STATES = new Set(["present", "idle", "away"]);
+const PRESENCE_STATES = new Set(["present", "idle"]);
 const MAX_CHAT_LENGTH = 2_000;
 const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
@@ -347,7 +347,6 @@ function attachPeer(socket, info) {
 
     peers.delete(id);
     emit({ type: "peer-status", connected: false, peer: id });
-    emit({ type: "presence", peer: id, state: "away" });
   };
 
   socket.once("close", disconnect);
@@ -367,9 +366,12 @@ async function leavePairing() {
   peers.clear();
 }
 
-async function joinTopic(topic) {
+async function joinTopic(topic, options = {}) {
   await leavePairing();
-  discovery = swarm.join(topic, { client: true, server: true });
+  discovery = swarm.join(topic, {
+    client: options.client ?? true,
+    server: options.server ?? true,
+  });
   await discovery.flushed();
   emit({ type: "topic-joined" });
 }
@@ -378,7 +380,10 @@ async function handleCommand(command) {
   switch (command?.type) {
     case "create-pairing": {
       const roomCode = createRoomCode();
-      await joinTopic(crypto.hash(b4a.from(roomCode)));
+      await joinTopic(crypto.hash(b4a.from(roomCode)), {
+        client: false,
+        server: true,
+      });
       emit({ type: "invite", code: roomCode });
       return;
     }
@@ -386,7 +391,10 @@ async function handleCommand(command) {
     case "join-pairing": {
       const roomCode = parseRoomCode(command.code);
       emit({ type: "joined" });
-      await joinTopic(crypto.hash(b4a.from(roomCode)));
+      await joinTopic(crypto.hash(b4a.from(roomCode)), {
+        client: true,
+        server: false,
+      });
       return;
     }
 
@@ -411,7 +419,7 @@ async function handleCommand(command) {
 
     case "send-presence": {
       if (!PRESENCE_STATES.has(command.state)) {
-        throw new Error("Presence state must be present, idle, or away.");
+        throw new Error("Presence state must be present or idle.");
       }
 
       localPresence = command.state;
