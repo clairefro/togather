@@ -1404,7 +1404,14 @@ function bindNameMenu() {
     const input = app.querySelector("#display-name-input");
     if (!popover || !input) return;
 
-    state.menuOpen = !state.menuOpen;
+    const openingMenu = !state.menuOpen;
+    if (openingMenu) {
+      state.chatOpen = false;
+      const chatPopover = app.querySelector(".chat-popover");
+      if (chatPopover) chatPopover.hidden = true;
+    }
+
+    state.menuOpen = openingMenu;
     popover.hidden = !state.menuOpen;
     if (state.menuOpen) {
       state.displayNameDraft = input.value || defaultDisplayName();
@@ -2156,6 +2163,11 @@ function setConnection(connected) {
   }
 }
 function toggleChat() {
+  const openingChat = !state.chatOpen;
+  if (openingChat) {
+    state.menuOpen = false;
+  }
+
   state.chatOpen = !state.chatOpen;
   if (state.chatOpen) {
     state.unreadChatCount = 0;
