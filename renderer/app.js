@@ -117,6 +117,11 @@ const PRESENCE_HEARTBEAT_MS = 5000;
 const PRESENCE_WATCHDOG_MS = 1000;
 const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
+const COLOR_SATURATION_STEPS = [62, 68, 74, 80, 56];
+const COLOR_LIGHTNESS_STEPS = [52, 58, 64, 70, 46];
+const COLOR_HUE_STEP = 47;
+const TOTAL_COLOR_VARIANTS =
+  360 * COLOR_SATURATION_STEPS.length * COLOR_LIGHTNESS_STEPS.length;
 const state = {
   connected: false,
   selfPeerId: "",
@@ -139,6 +144,7 @@ const state = {
   chatOpen: false,
   zoomLevel: 1,
   typingPeers: new Map(),
+  peerColorIndexes: new Map(),
   child: null,
   buffer: "",
   listeners: new Set(),
@@ -536,8 +542,13 @@ async function applyAvatarFromFile(file) {
     });
   }
 
-  if (app.querySelector(".main-widget") || app.querySelector(".onboarding")) {
+  if (app.querySelector(".main-widget")) {
     renderWidget();
+    return;
+  }
+
+  if (app.querySelector(".onboarding")) {
+    renderOnboarding(state.joiningRoom ? "join" : "choose");
   }
 }
 
@@ -591,24 +602,37 @@ function bindAvatarControls(scope = app) {
   }
 }
 
-function insertAvatarEditor(container, labelText, avatarName, beforeSelector) {
-  if (!container || container.querySelector("[data-avatar-dropzone]")) return;
-
+function renderAvatarEditorMarkup(labelText, avatarName) {
   const preview = avatarMarkup(
     state.avatar,
     avatarName || state.displayName || "you",
     "avatar-preview",
   );
-  const editorHtml = `<div class="avatar-editor"><div class="avatar-preview-wrap" data-avatar-dropzone>${preview}<div class="avatar-overlay"><span>${escapeHtml(labelText)}</span><button type="button" class="quiet avatar-upload-button" data-avatar-upload>Upload PNG</button></div></div><input type="file" accept="image/png" hidden data-avatar-file></div>`;
+
+  return `<div class="avatar-editor"><div class="avatar-preview-wrap" data-avatar-dropzone>${preview}<div class="avatar-overlay"><span>${escapeHtml(labelText)}</span><button type="button" class="quiet avatar-upload-button" data-avatar-upload>Upload PNG</button></div></div><input type="file" accept="image/png" hidden data-avatar-file></div>`;
+}
+
+function mountAvatarEditor(options = {}) {
+  const {
+    container,
+    labelText,
+    avatarName,
+    beforeSelector,
+    insertPosition = "afterbegin",
+  } = options;
+
+  if (!container || container.querySelector("[data-avatar-dropzone]")) return;
+
+  const editorMarkup = renderAvatarEditorMarkup(labelText, avatarName);
   const target = beforeSelector
     ? container.querySelector(beforeSelector)
     : null;
   if (target) {
-    target.insertAdjacentHTML("beforebegin", editorHtml);
+    target.insertAdjacentHTML("beforebegin", editorMarkup);
     return;
   }
 
-  container.insertAdjacentHTML("afterbegin", editorHtml);
+  container.insertAdjacentHTML(insertPosition, editorMarkup);
 }
 
 function ensurePeer(peerId) {
@@ -787,12 +811,12 @@ function renderOnboarding(mode = "choose") {
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button>${usePreviousRoomButton}<button class="quiet" data-action="back">Back</button>`;
   app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="character idle"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${activePeerCount()} ${activePeerCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
-  insertAvatarEditor(
-    app.querySelector(".onboarding-body"),
-    "Drop PNG or upload your avatar",
-    state.displayName || "you",
-    "[data-error]",
-  );
+  mountAvatarEditor({
+    container: app.querySelector(".onboarding-body"),
+    labelText: "Drop PNG or upload your avatar",
+    avatarName: state.displayName || "you",
+    beforeSelector: "[data-error]",
+  });
   app
     .querySelector('[data-action="create"]')
     ?.addEventListener("click", createPairing);
@@ -1007,8 +1031,48 @@ function hashToHue(value) {
   return hash % 360;
 }
 
+function colorIndexToHsl(index) {
+  const normalized = Math.max(0, Math.floor(index));
+  const hue = (normalized * COLOR_HUE_STEP) % 360;
+  const saturation =
+    COLOR_SATURATION_STEPS[
+      Math.floor(normalized / 360) % COLOR_SATURATION_STEPS.length
+    ];
+  const lightness =
+    COLOR_LIGHTNESS_STEPS[
+      Math.floor(normalized / (360 * COLOR_SATURATION_STEPS.length)) %
+        COLOR_LIGHTNESS_STEPS.length
+    ];
+
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+function reserveColorIndexForKey(key) {
+  const normalizedKey = typeof key === "string" ? key : String(key ?? "");
+  const existingIndex = state.peerColorIndexes.get(normalizedKey);
+  if (Number.isInteger(existingIndex)) return existingIndex;
+
+  const used = new Set(state.peerColorIndexes.values());
+  let candidate = hashToHue(normalizedKey) % TOTAL_COLOR_VARIANTS;
+
+  for (let attempt = 0; attempt < TOTAL_COLOR_VARIANTS; attempt += 1) {
+    if (!used.has(candidate)) {
+      state.peerColorIndexes.set(normalizedKey, candidate);
+      return candidate;
+    }
+
+    candidate = (candidate + 1) % TOTAL_COLOR_VARIANTS;
+  }
+
+  // Extremely unlikely fallback once all variants are reserved.
+  const fallbackIndex = state.peerColorIndexes.size % TOTAL_COLOR_VARIANTS;
+  state.peerColorIndexes.set(normalizedKey, fallbackIndex);
+  return fallbackIndex;
+}
+
 function chatNameColor(key) {
-  return `hsl(${hashToHue(key)}, 72%, 68%)`;
+  const index = reserveColorIndexForKey(key);
+  return colorIndexToHsl(index);
 }
 
 function chatDisplayName(message) {
@@ -1399,12 +1463,12 @@ function renderWidget() {
 
   app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
-  insertAvatarEditor(
-    app.querySelector(".menu-popover"),
-    "Drop PNG or upload your avatar",
-    state.displayName || "you",
-    ".name-form",
-  );
+  mountAvatarEditor({
+    container: app.querySelector(".menu-popover"),
+    labelText: "Drop PNG or upload your avatar",
+    avatarName: state.displayName || "you",
+    beforeSelector: ".name-form",
+  });
   app
     .querySelector('[data-action="chat"]')
     .addEventListener("click", toggleChat);
@@ -1472,6 +1536,7 @@ async function leaveRoom() {
   state.unreadChatCount = 0;
   state.connectedPeers.clear();
   state.peers.clear();
+  state.peerColorIndexes.clear();
   renderOnboarding("choose");
 }
 
@@ -1496,6 +1561,7 @@ async function resetPairing() {
   state.unreadChatCount = 0;
   state.connectedPeers.clear();
   state.peers.clear();
+  state.peerColorIndexes.clear();
   state.inviteCode = "";
   state.creatingRoom = false;
   state.messages = [];

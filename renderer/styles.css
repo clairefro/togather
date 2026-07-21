@@ -539,7 +539,6 @@ body.joined-transparent .main-widget .chat-button {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -549,6 +548,12 @@ body.joined-transparent .main-widget .chat-button {
   background: transparent;
   color: #dcece5;
   font-size: 10px;
+}
+.peer-card {
+  gap: 14px;
+}
+.peer-empty {
+  gap: 8px;
 }
 .peer-card .character {
   position: relative;
@@ -562,9 +567,9 @@ body.joined-transparent .main-widget .chat-button {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 50%;
+  border-radius: 0;
   object-fit: cover;
-  background: rgb(255 255 255 / 4%);
+  background: transparent;
 }
 .fallback-avatar {
   display: grid;
@@ -590,7 +595,7 @@ body.joined-transparent .main-widget .chat-button {
   margin: 0 auto;
   overflow: hidden;
   border: 1px dashed var(--control-outline);
-  border-radius: 18px;
+  border-radius: 0;
   background: rgb(255 255 255 / 6%);
 }
 .avatar-preview-wrap.is-dragover {
@@ -619,9 +624,13 @@ body.joined-transparent .main-widget .chat-button {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  width: 100%;
+  width: fit-content;
+  max-width: min(100%, calc(100% - 6px));
+  padding: 3px 9px;
+  border-radius: 8px;
   overflow: hidden;
-  color: #676f79;
+  color: #fff;
+  background: rgb(22 30 41 / 46%);
 }
 .peer-caption .status-dot {
   width: 10px;
@@ -636,6 +645,7 @@ body.joined-transparent .main-widget .chat-button {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
+  color: inherit;
 }
 .peer-idle-since {
   color: #a9c0b7;
@@ -656,9 +666,16 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-card,
   .peer-empty {
-    gap: 4px;
     padding: 4px;
     border-radius: 10px;
+  }
+
+  .peer-card {
+    gap: 8px;
+  }
+
+  .peer-empty {
+    gap: 4px;
   }
 
   .peer-card .character {
@@ -669,6 +686,7 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-caption {
     gap: 4px;
+    padding: 2px 7px;
   }
 
   .peer-caption .status-dot {
