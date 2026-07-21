@@ -147,13 +147,6 @@ button {
   -webkit-user-select: none;
   cursor: default;
 }
-.onboarding-content {
-  width: min(100%, 500px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
 .onboarding-body * {
   cursor: default;
 }
@@ -204,7 +197,7 @@ button {
   background: var(--surface-input);
   color: #ecf8f3;
   padding: 8px 10px;
-  text-align: left;
+  text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   user-select: text;
   -webkit-user-select: text;
@@ -699,7 +692,7 @@ body.joined-transparent .main-widget .chat-button {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin-top: 4px;
+  margin-top: 0;
   text-align: left;
 }
 .status-form-header {
@@ -973,9 +966,14 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 14px;
 }
 .menu-section {
-  margin-bottom: 10px;
-  padding-bottom: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid rgb(var(--accent-rgb) / 28%);
+}
+.menu-popover > .menu-section:last-of-type {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .menu-label {
   margin: 0;
@@ -1062,6 +1060,35 @@ body.joined-transparent .main-widget .chat-button {
 }
 .name-form input:focus {
   border-color: var(--control-outline-strong);
+}
+.zoom-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.zoom-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.zoom-menu-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.zoom-step-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+.zoom-shortcut-hint {
+  margin: 0;
+  color: #93a39b;
+  font-size: 11px;
+  font-style: italic;
 }
 .checkmark-button {
   display: grid;
@@ -1223,6 +1250,32 @@ body.joined-transparent .main-widget .chat-button {
   padding: 0 18px;
   margin-top: 0;
   line-height: 1;
+}
+.zoom-level-notice {
+  position: fixed;
+  top: 42px;
+  right: 12px;
+  z-index: 230;
+  min-width: 58px;
+  padding: 6px 10px;
+  border: 1px solid rgb(255 255 255 / 24%);
+  border-radius: 999px;
+  color: #eef7f3;
+  background: rgb(15 20 26 / 88%);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+.zoom-level-notice.is-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 @keyframes float {
   0% {

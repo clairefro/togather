@@ -120,6 +120,7 @@ const PRESENCE_WATCHDOG_MS = 1000;
 const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
 const STATUS_MAX_TEXT_LENGTH = 80;
+const ZOOM_NOTICE_DURATION_MS = 900;
 const STATUS_EMOJI_OPTIONS = [
   { emoji: "💭", label: "Thinking" },
   { emoji: "☕", label: "Coffee" },
@@ -988,6 +989,22 @@ function copyIconSvg() {
   return '<img class="copy-icon" src="assets/copy.svg" alt="" aria-hidden="true">';
 }
 
+function zoomMenuMarkup() {
+  return `<div class="menu-section zoom-menu-section"><div class="zoom-menu-row"><label class="menu-label">Zoom</label><div class="zoom-menu-buttons"><button type="button" class="icon-button zoom-step-button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out">−</button><button type="button" class="icon-button zoom-step-button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in">+</button></div></div><p class="zoom-shortcut-hint">cmd/ctrl +/-</p></div>`;
+}
+
+function roomInfoMenuMarkup(peerCount) {
+  return `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div>`;
+}
+
+function nameMenuMarkup(menuNameValue) {
+  return `<form class="name-form menu-section"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form>`;
+}
+
+function statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue) {
+  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label" for="status-text-input">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><div class="status-emoji-picker" role="group" aria-label="Choose status emoji">${STATUS_EMOJI_OPTIONS.map((option) => `<button type="button" class="status-emoji-option ${option.emoji === menuStatusEmojiValue ? "is-selected" : ""}" data-action="pick-status-emoji" data-status-emoji="${escapeAttribute(option.emoji)}" aria-pressed="${option.emoji === menuStatusEmojiValue ? "true" : "false"}" title="${escapeAttribute(option.label)}" aria-label="${escapeAttribute(option.label)}">${escapeHtml(option.emoji)}</button>`).join("")}</div><div class="status-controls"><input id="status-text-input" class="status-text-input" maxlength="${STATUS_MAX_TEXT_LENGTH}" placeholder="status note (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuStatusTextValue)}"><button type="button" class="checkmark-button" data-action="save-status" title="Update" aria-label="Save status">✓</button></div></section>`;
+}
+
 function renderOnboarding(mode = "choose") {
   state.inviteCode = "";
   if (mode === "choose") {
@@ -1015,10 +1032,25 @@ function renderOnboarding(mode = "choose") {
     ? '<button class="quiet" data-action="use-prev-room-id">Use previous room id</button>'
     : "";
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button>${usePreviousRoomButton}<button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${connectedParticipantCount()} ${connectedParticipantCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  const menuNameValue =
+    state.menuOpen && typeof state.displayNameDraft === "string"
+      ? state.displayNameDraft
+      : defaultDisplayName();
+  const menuStatusEmojiValue =
+    state.menuOpen && typeof state.statusEmojiDraft === "string"
+      ? state.statusEmojiDraft
+      : state.statusEmoji;
+  const menuStatusTextValue =
+    state.menuOpen && typeof state.statusTextDraft === "string"
+      ? state.statusTextDraft
+      : state.statusText;
+  const roomSection = state.connected
+    ? roomInfoMenuMarkup(connectedParticipantCount())
+    : "";
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
-    container: app.querySelector(".onboarding-content"),
+    container: app.querySelector(".onboarding-body"),
     avatarName: state.displayName || "you",
     beforeSelector: "[data-error]",
   });
@@ -1139,8 +1171,10 @@ function renderOnboarding(mode = "choose") {
     });
 
   bindAvatarControls(app);
+  bindZoomMenuControls();
 
   bindNameMenu();
+  bindStatusMenu();
 
   bindDragHandle();
   bindResizeHandle();
@@ -1149,7 +1183,7 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
 
   const runInviteCopy = async () => {
     try {
@@ -1499,10 +1533,12 @@ function bindStatusMenu() {
     state.statusTextDraft = nextText;
     saveStatus(nextEmoji, nextText);
 
-    try {
-      await sendLocalProfile();
-    } catch (error) {
-      showError(error);
+    if (state.connected) {
+      try {
+        await sendLocalProfile();
+      } catch (error) {
+        showError(error);
+      }
     }
 
     if (app.querySelector(".main-widget")) renderWidget();
@@ -1546,7 +1582,9 @@ function bindStatusMenu() {
     emojiInput.value = "";
     textInput.value = "";
 
-    void sendLocalProfile().catch((error) => showError(error));
+    if (state.connected) {
+      void sendLocalProfile().catch((error) => showError(error));
+    }
 
     if (app.querySelector(".main-widget")) renderWidget();
   });
@@ -1628,6 +1666,34 @@ async function sendStoppedTypingEvent() {
 let typingTimeout = null;
 let typingDebounceHandler = null;
 let typingKeydownHandler = null;
+let zoomNoticeTimer = null;
+
+function showZoomLevelNotice(zoom) {
+  const normalizedZoom = Number.isFinite(zoom)
+    ? Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+    : 1;
+  const zoomPercent = Math.round(normalizedZoom * 100);
+
+  let notice = document.querySelector(".zoom-level-notice");
+  if (!(notice instanceof HTMLDivElement)) {
+    notice = document.createElement("div");
+    notice.className = "zoom-level-notice";
+    notice.setAttribute("aria-live", "polite");
+    notice.setAttribute("aria-atomic", "true");
+    document.body.append(notice);
+  }
+
+  notice.textContent = `${zoomPercent}%`;
+  notice.classList.add("is-visible");
+
+  if (zoomNoticeTimer) {
+    clearTimeout(zoomNoticeTimer);
+  }
+
+  zoomNoticeTimer = setTimeout(() => {
+    notice?.classList.remove("is-visible");
+  }, ZOOM_NOTICE_DURATION_MS);
+}
 
 function setupChatInputTypingListener() {
   const input = app.querySelector(".chat-form input");
@@ -1665,18 +1731,57 @@ function setupChatInputTypingListener() {
 function applyZoomLevel(zoom) {
   const app = document.getElementById("app");
   if (app) {
+    const normalizedZoom = Number.isFinite(zoom)
+      ? Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom))
+      : 1;
+
+    // Keep the scaled surface within viewport width by shrinking
+    // the pre-transform box inversely to the zoom factor.
+    const inverseScale = 1 / normalizedZoom;
+    app.style.width = `${inverseScale * 100}%`;
+    app.style.height = `${inverseScale * 100}%`;
     app.style.transform = `scale(${zoom})`;
-    app.style.transformOrigin = "top center";
+    app.style.transformOrigin = "top left";
   }
+
+  document.body.style.overflowX = "hidden";
   if (zoom > 1) {
-    document.body.style.overflow = "auto";
+    document.body.style.overflowY = "auto";
     document.body.style.width = "100%";
-    document.body.style.height = "auto";
+    document.body.style.height = "100%";
   } else {
-    document.body.style.overflow = "hidden";
+    document.body.style.overflowY = "hidden";
     document.body.style.width = "100%";
     document.body.style.height = "100%";
   }
+}
+
+function stepZoom(direction) {
+  const normalizedDirection = direction >= 0 ? 1 : -1;
+  const previousZoom = state.zoomLevel;
+
+  if (normalizedDirection > 0) {
+    state.zoomLevel = Math.min(MAX_ZOOM, state.zoomLevel + ZOOM_STEP);
+  } else {
+    state.zoomLevel = Math.max(MIN_ZOOM, state.zoomLevel - ZOOM_STEP);
+  }
+
+  if (state.zoomLevel === previousZoom) return false;
+
+  applyZoomLevel(state.zoomLevel);
+  saveZoomLevel(state.zoomLevel);
+  showZoomLevelNotice(state.zoomLevel);
+  return true;
+}
+
+function bindZoomMenuControls() {
+  app.querySelector('[data-action="zoom-in"]')?.addEventListener("click", () => {
+    stepZoom(1);
+  });
+
+  app.querySelector('[data-action="zoom-out"]')?.addEventListener("click", () => {
+    stepZoom(-1);
+  });
 }
 
 function enableZoomKeyHandler() {
@@ -1694,12 +1799,10 @@ function enableZoomKeyHandler() {
       if (isMeta && isZoomKey) {
         event.preventDefault();
         if (event.code === "Equal" || event.key === "+" || event.key === "=") {
-          state.zoomLevel = Math.min(MAX_ZOOM, state.zoomLevel + ZOOM_STEP);
+          stepZoom(1);
         } else if (event.code === "Minus" || event.key === "-") {
-          state.zoomLevel = Math.max(MIN_ZOOM, state.zoomLevel - ZOOM_STEP);
+          stepZoom(-1);
         }
-        applyZoomLevel(state.zoomLevel);
-        saveZoomLevel(state.zoomLevel);
       }
     },
     true,
@@ -1791,7 +1894,7 @@ function renderWidget() {
   const menuButtonLabel = "Menu";
   const minimizeButtonLabel = "Minimize";
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form><section class="status-form"><div class="status-form-header"><label class="menu-label" for="status-text-input">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><div class="status-emoji-picker" role="group" aria-label="Choose status emoji">${STATUS_EMOJI_OPTIONS.map((option) => `<button type="button" class="status-emoji-option ${option.emoji === menuStatusEmojiValue ? "is-selected" : ""}" data-action="pick-status-emoji" data-status-emoji="${escapeAttribute(option.emoji)}" aria-pressed="${option.emoji === menuStatusEmojiValue ? "true" : "false"}" title="${escapeAttribute(option.label)}" aria-label="${escapeAttribute(option.label)}">${escapeHtml(option.emoji)}</button>`).join("")}</div><div class="status-controls"><input id="status-text-input" class="status-text-input" maxlength="${STATUS_MAX_TEXT_LENGTH}" placeholder="status note (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuStatusTextValue)}"><button type="button" class="checkmark-button" data-action="save-status" title="Update" aria-label="Save status">✓</button></div></section></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".menu-popover"),
@@ -1818,6 +1921,7 @@ function renderWidget() {
   bindNameMenu();
   bindStatusMenu();
   bindAvatarControls(app);
+  bindZoomMenuControls();
 
   if (state.chatOpen) {
     renderMessages();
