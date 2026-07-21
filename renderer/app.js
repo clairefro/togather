@@ -709,7 +709,9 @@ function renderInvite() {
         }, 900);
       }
 
-      const primaryButton = app.querySelector('[data-action="copy-invite-primary"]');
+      const primaryButton = app.querySelector(
+        '[data-action="copy-invite-primary"]',
+      );
       if (primaryButton) {
         const originalPrimary = primaryButton.textContent;
         primaryButton.textContent = "Copied";

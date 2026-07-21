@@ -2,6 +2,9 @@
 
 use tauri::Manager;
 
+const DEFAULT_WINDOW_WIDTH: f64 = 300.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 520.0;
+
 #[tauri::command]
 fn get_system_idle_seconds() -> Option<f64> {
     #[cfg(target_os = "macos")]
@@ -78,6 +81,10 @@ fn main() {
                     .expect("failed to create main window")
             };
 
+            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
+                DEFAULT_WINDOW_WIDTH,
+                DEFAULT_WINDOW_HEIGHT,
+            )));
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
