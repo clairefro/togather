@@ -557,6 +557,63 @@ body.joined-transparent .main-widget .chat-button {
   max-height: calc(100% - 22px);
   aspect-ratio: 1 / 1;
 }
+.peer-avatar,
+.avatar-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  background: rgb(255 255 255 / 4%);
+}
+.fallback-avatar {
+  display: grid;
+  place-items: center;
+}
+.fallback-avatar svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.avatar-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 0 8px;
+}
+.avatar-preview-wrap {
+  position: relative;
+  width: min(164px, 100%);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px dashed var(--control-outline);
+  border-radius: 18px;
+  background: rgb(255 255 255 / 6%);
+}
+.avatar-preview-wrap.is-dragover {
+  border-color: var(--control-outline-strong);
+  background: rgb(var(--accent-rgb) / 12%);
+}
+.avatar-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px 8px;
+  color: var(--color-text);
+  font-size: 11px;
+  text-align: center;
+  background: linear-gradient(180deg, transparent, rgb(14 17 21 / 78%));
+}
+.avatar-upload-button {
+  width: auto;
+  padding: 6px 10px;
+}
 .peer-caption {
   display: flex;
   align-items: center;

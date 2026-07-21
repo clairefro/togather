@@ -5,6 +5,7 @@ import Hyperswarm from "hyperswarm";
 
 const PRESENCE_STATES = new Set(["present", "idle"]);
 const MAX_CHAT_LENGTH = 2_000;
+const MAX_AVATAR_DATA_URL_LENGTH = 400000;
 const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
   "ancient",
@@ -217,6 +218,7 @@ let discovery = null;
 let inputBuffer = "";
 let localPresence = "present";
 let localDisplayName = "";
+let localAvatar = "";
 
 function emit(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -286,6 +288,19 @@ function parseDisplayName(value) {
   return value.trim().slice(0, 40);
 }
 
+function parseAvatar(value) {
+  if (typeof value !== "string" || !value) return "";
+  if (!value.startsWith("data:image/png;base64,")) {
+    throw new Error("Avatar must be a PNG data URL.");
+  }
+
+  if (value.length > MAX_AVATAR_DATA_URL_LENGTH) {
+    throw new Error("Avatar is too large.");
+  }
+
+  return value;
+}
+
 function receivePeerMessage(line, fromPeer) {
   let message;
 
@@ -312,7 +327,8 @@ function receivePeerMessage(line, fromPeer) {
   } else if (message?.type === "profile") {
     try {
       const displayName = parseDisplayName(message.displayName ?? "");
-      emit({ type: "profile", peer: fromPeer, displayName });
+      const avatar = parseAvatar(message.avatar ?? "");
+      emit({ type: "profile", peer: fromPeer, displayName, avatar });
     } catch {
       // Ignore invalid profile payloads from peers.
     }
@@ -330,7 +346,11 @@ function attachPeer(socket, info) {
   peers.set(id, socket);
   emit({ type: "peer-status", connected: true, peer: id });
   sendToPeer(socket, { type: "presence", state: localPresence });
-  sendToPeer(socket, { type: "profile", displayName: localDisplayName });
+  sendToPeer(socket, {
+    type: "profile",
+    displayName: localDisplayName,
+    avatar: localAvatar,
+  });
 
   socket.on("data", (chunk) => {
     messageBuffer += b4a.toString(chunk);
@@ -429,7 +449,12 @@ async function handleCommand(command) {
 
     case "set-profile": {
       localDisplayName = parseDisplayName(command.displayName ?? "");
-      sendToPeers({ type: "profile", displayName: localDisplayName });
+      localAvatar = parseAvatar(command.avatar ?? "");
+      sendToPeers({
+        type: "profile",
+        displayName: localDisplayName,
+        avatar: localAvatar,
+      });
       return;
     }
 
