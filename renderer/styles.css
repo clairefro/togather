@@ -517,7 +517,7 @@ body.joined-transparent .main-widget .chat-button {
   align-items: center;
   gap: 6px;
   margin-top: 10px;
-  color: #dcece5;
+  color: #676f79;
   font-size: 13px;
 }
 .peer-strip {
@@ -564,7 +564,7 @@ body.joined-transparent .main-widget .chat-button {
   gap: 5px;
   width: 100%;
   overflow: hidden;
-  color: #cfe1da;
+  color: #676f79;
 }
 .peer-caption .status-dot {
   width: 10px;

@@ -599,6 +599,24 @@ function renderOnboarding(mode = "choose") {
   app
     .querySelector('[data-action="back"]')
     ?.addEventListener("click", () => renderOnboarding());
+  if (mode === "choose") {
+    requestAnimationFrame(() => {
+      const input = app.querySelector("#onboarding-display-name-input");
+      if (!input) return;
+
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  }
+  if (mode === "join") {
+    requestAnimationFrame(() => {
+      const input = app.querySelector("#invite-code");
+      if (!input) return;
+
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+  }
   const onboardingNameInput = app.querySelector(
     "#onboarding-display-name-input",
   );
@@ -845,7 +863,7 @@ function defaultDisplayName() {
 }
 
 function nameEditorPlaceholder() {
-  return "Enter name (or default random)";
+  return "Enter name";
 }
 
 function syncNameEditorControls() {
