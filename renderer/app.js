@@ -558,7 +558,11 @@ function avatarMarkup(avatar, name, className) {
   return `<div class="${className} fallback-avatar" aria-hidden="true"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div>`;
 }
 
-function statusBadgeMarkup(statusEmoji, statusText, className = "status-badge") {
+function statusBadgeMarkup(
+  statusEmoji,
+  statusText,
+  className = "status-badge",
+) {
   const emoji = normalizeStatusEmoji(statusEmoji);
   if (!emoji) return "";
 
@@ -673,6 +677,67 @@ function rerenderAfterAvatarUpdate() {
   }
 }
 
+function askConfirm(message, options = {}) {
+  const confirmLabel =
+    typeof options.confirmLabel === "string" && options.confirmLabel.trim()
+      ? options.confirmLabel.trim()
+      : "Confirm";
+  const cancelLabel =
+    typeof options.cancelLabel === "string" && options.cancelLabel.trim()
+      ? options.cancelLabel.trim()
+      : "Cancel";
+
+  const existing = document.querySelector(".confirm-backdrop");
+  if (existing) existing.remove();
+
+  return new Promise((resolve) => {
+    const backdrop = document.createElement("div");
+    backdrop.className = "confirm-backdrop";
+
+    backdrop.innerHTML = `<div class="confirm-dialog" role="dialog" aria-modal="true" aria-label="Confirmation"><p class="confirm-message">${escapeHtml(String(message || "Are you sure?"))}</p><div class="confirm-actions"><button type="button" class="quiet confirm-cancel">${escapeHtml(cancelLabel)}</button><button type="button" class="primary confirm-approve">${escapeHtml(confirmLabel)}</button></div></div>`;
+
+    const cancelButton = backdrop.querySelector(".confirm-cancel");
+    const approveButton = backdrop.querySelector(".confirm-approve");
+    const dialog = backdrop.querySelector(".confirm-dialog");
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("keydown", onKeyDown);
+      backdrop.remove();
+      resolve(Boolean(value));
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        finish(false);
+      }
+    };
+
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) finish(false);
+    });
+    dialog?.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+    cancelButton?.addEventListener("click", () => finish(false));
+    approveButton?.addEventListener("click", () => finish(true));
+    window.addEventListener("keydown", onKeyDown);
+
+    document.body.append(backdrop);
+    approveButton?.focus();
+  });
+}
+
+function confirmAvatarRemoval() {
+  return askConfirm("Are you sure you want to remove your avatar?", {
+    confirmLabel: "Remove",
+    cancelLabel: "Cancel",
+  });
+}
+
 async function clearAvatar() {
   if (!state.avatar) {
     rerenderAfterAvatarUpdate();
@@ -718,6 +783,9 @@ function bindAvatarControls(scope = app) {
     button.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
+
+      const confirmed = await confirmAvatarRemoval();
+      if (!confirmed) return;
 
       try {
         await clearAvatar();
@@ -796,6 +864,10 @@ function activePeerIds() {
 
 function activePeerCount() {
   return activePeerIds().length;
+}
+
+function connectedParticipantCount() {
+  return state.connected ? activePeerCount() + 1 : 0;
 }
 
 function aggregatePeerPresence() {
@@ -943,10 +1015,10 @@ function renderOnboarding(mode = "choose") {
     ? '<button class="quiet" data-action="use-prev-room-id">Use previous room id</button>'
     : "";
   const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button>${usePreviousRoomButton}<button class="quiet" data-action="back">Back</button>`;
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${activePeerCount()} ${activePeerCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${state.connected ? `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${connectedParticipantCount()} ${connectedParticipantCount() === 1 ? "peer" : "peers"} present</p></div>` : ""}<form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(state.displayName)}"><button type="submit" class="checkmark-button" data-action="save-name" hidden aria-label="Save display name">✓</button></div></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
-    container: app.querySelector(".onboarding-body"),
+    container: app.querySelector(".onboarding-content"),
     avatarName: state.displayName || "you",
     beforeSelector: "[data-error]",
   });
@@ -1077,7 +1149,7 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
 
   const runInviteCopy = async () => {
     try {
@@ -1383,7 +1455,9 @@ function syncStatusEditorControls() {
   const emojiInput = app.querySelector("#status-emoji-input");
   const textInput = app.querySelector("#status-text-input");
   const clearButton = app.querySelector('[data-action="clear-status"]');
-  const emojiButtons = app.querySelectorAll('[data-action="pick-status-emoji"]');
+  const emojiButtons = app.querySelectorAll(
+    '[data-action="pick-status-emoji"]',
+  );
   if (!emojiInput || !textInput || !clearButton) return;
 
   const selectedEmoji = normalizeStatusEmoji(emojiInput.value);
@@ -1392,7 +1466,10 @@ function syncStatusEditorControls() {
   for (const button of emojiButtons) {
     const emoji = button.getAttribute("data-status-emoji") || "";
     button.classList.toggle("is-selected", emoji === selectedEmoji);
-    button.setAttribute("aria-pressed", emoji === selectedEmoji ? "true" : "false");
+    button.setAttribute(
+      "aria-pressed",
+      emoji === selectedEmoji ? "true" : "false",
+    );
   }
 
   const hasStatus = selectedEmoji !== "";
@@ -1407,7 +1484,9 @@ function bindStatusMenu() {
   const textInput = app.querySelector("#status-text-input");
   const saveButton = app.querySelector('[data-action="save-status"]');
   const clearButton = app.querySelector('[data-action="clear-status"]');
-  const emojiButtons = app.querySelectorAll('[data-action="pick-status-emoji"]');
+  const emojiButtons = app.querySelectorAll(
+    '[data-action="pick-status-emoji"]',
+  );
   if (!emojiInput || !textInput || !saveButton || !clearButton) return;
 
   const commitStatus = async () => {
@@ -1705,7 +1784,7 @@ function renderWidget() {
     .join("");
 
   if (state.connected) document.body.classList.add("joined-transparent");
-  const peerCount = activePeerCount();
+  const peerCount = connectedParticipantCount();
   const exitButtonText = state.connected ? "←" : "×";
   const exitButtonLabel = state.connected ? "Leave room" : "Exit";
   const chatButtonLabel = "Chat";
