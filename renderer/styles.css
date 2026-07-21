@@ -143,6 +143,18 @@ button {
   overflow-y: auto;
   padding: 10px 14px 14px;
   text-align: center;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+.onboarding-body * {
+  cursor: default;
+}
+.onboarding-body button {
+  cursor: pointer;
+}
+.onboarding-body input {
+  cursor: text;
 }
 .onboarding h1 {
   margin: 2px 0 0;
@@ -187,6 +199,8 @@ button {
   padding: 8px 10px;
   text-align: center;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .onboarding-name-input:focus {
   outline: none;
@@ -244,7 +258,7 @@ button {
   stroke-linecap: round;
 }
 .character.present {
-  animation: float 3.2s ease-in-out infinite;
+  animation: float 4.8s cubic-bezier(0.42, 0, 0.2, 1) infinite;
   filter: drop-shadow(0 0 10px currentColor);
 }
 .character.idle {
@@ -550,7 +564,7 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 10px;
 }
 .peer-card {
-  gap: 14px;
+  gap: 18px;
 }
 .peer-empty {
   gap: 8px;
@@ -574,11 +588,26 @@ body.joined-transparent .main-widget .chat-button {
 .fallback-avatar {
   display: grid;
   place-items: center;
+  color: var(--character-color, #8caea1);
 }
 .fallback-avatar svg {
   width: 100%;
   height: 100%;
   overflow: visible;
+}
+.fallback-avatar circle,
+.fallback-avatar path {
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 3;
+}
+.fallback-avatar .eye {
+  fill: #10251e;
+  stroke: none;
+}
+.fallback-avatar path {
+  fill: none;
+  stroke-linecap: round;
 }
 .avatar-editor {
   display: flex;
@@ -598,9 +627,23 @@ body.joined-transparent .main-widget .chat-button {
   border-radius: 0;
   background: rgb(255 255 255 / 6%);
 }
-.avatar-preview-wrap.is-dragover {
-  border-color: var(--control-outline-strong);
-  background: rgb(var(--accent-rgb) / 12%);
+.avatar-delete-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(12 16 22 / 72%);
+  border: 1px solid rgb(255 255 255 / 24%);
+  line-height: 1;
+}
+.avatar-delete-button:hover {
+  background: rgb(23 31 43 / 82%);
 }
 .avatar-overlay {
   position: absolute;
@@ -671,7 +714,7 @@ body.joined-transparent .main-widget .chat-button {
   }
 
   .peer-card {
-    gap: 8px;
+    gap: 10px;
   }
 
   .peer-empty {
@@ -1011,8 +1054,20 @@ body.joined-transparent .main-widget .chat-button {
   text-shadow: 0 0 4px rgb(10 8 20 / 55%);
 }
 @keyframes float {
+  0% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-2px);
+  }
   50% {
-    transform: translateY(-7px);
+    transform: translateY(-4px);
+  }
+  75% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
   }
 }
 @keyframes bounce {
