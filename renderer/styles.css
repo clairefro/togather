@@ -551,7 +551,7 @@ body.joined-transparent .main-widget .chat-button {
   min-height: 0;
   flex-direction: column;
   justify-content: stretch;
-  align-items: center;
+  align-items: stretch;
   padding: 8px 12px;
 }
 .main-widget .character {
@@ -571,11 +571,13 @@ body.joined-transparent .main-widget .chat-button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
   grid-auto-rows: minmax(0, 1fr);
+  grid-auto-flow: row dense;
   align-content: stretch;
+  align-items: stretch;
   row-gap: 10px;
-  column-gap: 6px;
+  column-gap: 4px;
   margin: 0;
   padding: 2px 0 0;
 }
@@ -607,6 +609,27 @@ body.joined-transparent .main-widget .chat-button {
   height: auto;
   max-height: calc(100% - 22px);
   aspect-ratio: 1 / 1;
+}
+@media (max-width: 430px), (max-aspect-ratio: 4 / 5) {
+  .peer-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .peer-card .character {
+    width: min(62%, 180px, calc(100% - 20px));
+  }
+}
+
+@media (min-width: 431px) and (max-width: 640px) and (min-aspect-ratio: 13 / 10) {
+  .peer-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 641px), (min-aspect-ratio: 6 / 5) {
+  .peer-strip {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  }
 }
 .peer-avatar,
 .avatar-preview {
@@ -872,11 +895,13 @@ body.joined-transparent .main-widget .chat-button {
 }
 .peer-caption {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 5px;
   width: fit-content;
   max-width: min(100%, calc(100% - 6px));
+  min-height: 26px;
   padding: 3px 9px;
   border-radius: 8px;
   overflow: hidden;
@@ -889,9 +914,11 @@ body.joined-transparent .main-widget .chat-button {
   flex: 0 0 auto;
 }
 .peer-caption-text {
+  flex: 0 1 auto;
   font-size: 14px;
   font-weight: 600;
   min-width: 0;
+  min-height: 1em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1503,8 +1530,15 @@ body.joined-transparent .main-widget .chat-button {
   right: 8px;
   display: flex;
   gap: 3px;
-  border: 1px solid rgb(var(--accent-rgb) / 38%);
-  background: linear-gradient(180deg, #332c57 0%, #272243 100%);
+  border: 1px solid
+    color-mix(in srgb, var(--character-color, #8caea1) 38%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--character-color, #8caea1) 18%, rgb(24 28 36 / 90%))
+      0%,
+    color-mix(in srgb, var(--character-color, #8caea1) 10%, rgb(18 22 29 / 92%))
+      100%
+  );
   padding: 6px 8px;
   border-radius: 8px;
   box-shadow:
@@ -1514,7 +1548,11 @@ body.joined-transparent .main-widget .chat-button {
 .typing-indicator span {
   width: 4px;
   height: 4px;
-  background: var(--accent-soft);
+  background: color-mix(
+    in srgb,
+    var(--character-color, #8caea1) 78%,
+    white 22%
+  );
   border-radius: 50%;
   animation: typingDot 1.4s infinite;
 }
