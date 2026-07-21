@@ -559,6 +559,10 @@ function statusBadgeMarkup(
     ? ` aria-label="Status: ${escapeAttribute(text)}"`
     : ' aria-hidden="true"';
 
+  if (className === "status-thinking-bubble") {
+    return `<span class="${className}"${title}${aria}><svg class="status-thinking-bubble-svg" viewBox="0 0 50 40" aria-hidden="true" focusable="false"><defs><linearGradient id="status-thinking-bubble-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgb(49 55 64 / 72%)"/><stop offset="100%" stop-color="rgb(39 44 51 / 72%)"/></linearGradient></defs><circle class="status-thinking-bubble-tail status-thinking-bubble-tail-large" cx="18" cy="31" r="4.5"/><circle class="status-thinking-bubble-tail status-thinking-bubble-tail-small" cx="12" cy="36" r="2.75"/><rect class="status-thinking-bubble-body" x="11" y="2" width="37" height="26" rx="13" fill="url(#status-thinking-bubble-fill)"/></svg><span class="status-thinking-bubble-emoji">${escapeHtml(emoji)}</span></span>`;
+  }
+
   return `<span class="${className}"${title}${aria}>${escapeHtml(emoji)}</span>`;
 }
 
@@ -1011,11 +1015,15 @@ function statusMenuMarkup(menuStatusEmojiValue) {
   const triggerLabel = menuStatusEmojiValue
     ? `${menuStatusEmojiValue} ▾`
     : "Pick ▾";
-  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><button type="button" class="status-emoji-trigger" data-action="toggle-status-picker" aria-expanded="${state.statusEmojiPickerOpen ? "true" : "false"}" aria-label="Open emoji picker">${escapeHtml(triggerLabel)}</button></section>`;
+  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label">Status</label><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><button type="button" class="status-emoji-trigger" data-action="toggle-status-picker" aria-expanded="${state.statusEmojiPickerOpen ? "true" : "false"}" aria-label="Open emoji picker">${escapeHtml(triggerLabel)}</button><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div></section>`;
 }
 
 function statusPickerLayerMarkup() {
   return '<div class="status-picker-layer" data-status-picker-layer hidden><button type="button" class="status-picker-scrim" data-action="close-status-picker" aria-label="Close emoji picker"></button><div class="status-picker-panel" role="dialog" aria-modal="true" aria-label="Choose a status emoji"><div class="status-picker-header"><span>Status emoji</span><button type="button" class="icon-button status-picker-close" data-action="close-status-picker" aria-label="Close emoji picker">×</button></div><emoji-picker class="status-emoji-picker-widget" data-status-emoji-picker data-source="assets/vendor/emoji-picker-element-data/en/data.json"></emoji-picker></div></div>';
+}
+
+function menuDividerMarkup() {
+  return '<div class="menu-divider" role="separator" aria-hidden="true"></div>';
 }
 
 function renderOnboarding(mode = "choose") {
@@ -1056,7 +1064,7 @@ function renderOnboarding(mode = "choose") {
   const roomSection = state.connected
     ? roomInfoMenuMarkup(connectedParticipantCount())
     : "";
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Ambient-cowork directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${zoomMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Ambient-cowork directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".onboarding-body"),
@@ -1180,7 +1188,7 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for visitors...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body invite-screen"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room id</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for peers...</p><p class="error" data-error hidden></p></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
 
   const runInviteCopy = async () => {
     try {
@@ -1891,7 +1899,11 @@ function renderWidget() {
       const caption = peer?.displayName || peerShortId(peerId);
       const characterColor = chatNameColor(peerId);
       const hasAvatar = isPngAvatarDataUrl(peer?.avatar);
-      const status = statusBadgeMarkup(peer?.statusEmoji, peer?.statusText);
+      const status = statusBadgeMarkup(
+        peer?.statusEmoji,
+        peer?.statusText,
+        "status-thinking-bubble",
+      );
       const chirpText = normalizePeerChirpText(peer?.chirpText);
       const chirpMarkup = chirpText
         ? `<p class="peer-chirp" title="${escapeAttribute(chirpText)}">${escapeHtml(chirpText)}</p>`
@@ -1914,7 +1926,7 @@ function renderWidget() {
   const menuButtonLabel = "Menu";
   const minimizeButtonLabel = "Minimize";
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${zoomMenuMarkup()}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".menu-popover"),
@@ -1991,6 +2003,7 @@ async function leaveRoom() {
   state.connectedPeers.clear();
   state.peers.clear();
   state.peerColorIndexes.clear();
+  clearStatusForNewRoomSession();
   renderOnboarding("choose");
 }
 
@@ -2020,6 +2033,7 @@ async function resetPairing() {
   state.creatingRoom = false;
   state.messages = [];
   state.chatDraft = "";
+  clearStatusForNewRoomSession();
   renderOnboarding("choose");
 }
 
@@ -2631,6 +2645,9 @@ window.addEventListener("keydown", (event) => {
 state.displayName = readDisplayName();
 state.displayNameDraft = defaultDisplayName();
 state.avatar = readAvatar();
+
+// Status is session-scoped; clear any persisted value from previous runs.
+saveStatus("", "");
 state.statusEmoji = readStatusEmoji();
 state.statusText = readStatusText();
 state.statusEmojiDraft = state.statusEmoji;

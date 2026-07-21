@@ -715,19 +715,51 @@ body.joined-transparent .main-widget .chat-button {
   width: auto;
   padding: 6px 10px;
 }
+.menu-popover .avatar-editor {
+  gap: 6px;
+  margin: 0;
+}
+.menu-popover .avatar-preview-wrap {
+  width: min(104px, 100%);
+}
+.menu-popover .avatar-delete-button {
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+}
+.menu-popover .avatar-overlay {
+  padding: 6px 6px 6px;
+}
+.menu-popover .avatar-upload-button {
+  padding: 4px 8px;
+  font-size: 10px;
+}
+.menu-popover .avatar-editor .status-badge {
+  top: 4px;
+  right: 28px;
+  width: 18px;
+  height: 18px;
+  font-size: 11px;
+}
 .status-form {
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: block;
   margin-top: 0;
   text-align: left;
 }
 .status-form-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 8px;
+}
+.status-form-header .menu-label {
+  flex: 0 0 auto;
+}
+.status-form-header .status-emoji-trigger {
+  margin-left: auto;
 }
 .status-clear-button {
   width: 24px;
@@ -751,6 +783,7 @@ body.joined-transparent .main-widget .chat-button {
   display: inline-flex;
   align-items: center;
   width: auto;
+  flex: 0 1 auto;
   max-width: 100%;
   min-height: 32px;
   padding: 7px 9px;
@@ -870,7 +903,7 @@ body.joined-transparent .main-widget .chat-button {
   left: 50%;
   bottom: calc(100% - 10px);
   transform: translateX(-50%);
-  z-index: 6;
+  z-index: 12;
   max-width: min(160%, 180px);
   margin: 0;
   padding: 4px 8px;
@@ -878,7 +911,7 @@ body.joined-transparent .main-widget .chat-button {
   border-radius: 9px;
   color: #e8f3ee;
   background: rgb(14 20 28 / 78%);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.3;
   text-align: center;
   pointer-events: none;
@@ -886,12 +919,40 @@ body.joined-transparent .main-widget .chat-button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.peer-card .status-badge {
-  top: 4px;
-  right: 4px;
-  width: 21px;
-  height: 21px;
-  font-size: 12px;
+.peer-card .status-thinking-bubble {
+  position: absolute;
+  top: -14px;
+  right: -2px;
+  z-index: 7;
+  width: 50px;
+  height: 40px;
+  color: var(--color-text);
+  display: inline-grid;
+  align-items: start;
+  justify-items: center;
+  pointer-events: none;
+}
+.peer-card .status-thinking-bubble-svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.peer-card .status-thinking-bubble-body,
+.peer-card .status-thinking-bubble-tail {
+  stroke: color-mix(in srgb, var(--character-color, #8caea1) 38%, transparent);
+  stroke-width: 1;
+}
+.peer-card .status-thinking-bubble-tail {
+  fill: rgb(43 49 58 / 72%);
+}
+.peer-card .status-thinking-bubble-emoji {
+  position: relative;
+  z-index: 1;
+  margin-top: 8px;
+  margin-left: 8px;
+  font-size: 15px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgb(0 0 0 / 18%));
 }
 .peer-idle-since {
   color: #a9c0b7;
@@ -945,7 +1006,7 @@ body.joined-transparent .main-widget .chat-button {
   }
 
   .peer-chirp {
-    font-size: 10px;
+    font-size: 12px;
     padding: 3px 6px;
     max-width: min(170%, 150px);
     bottom: calc(100% - 8px);
@@ -1046,6 +1107,14 @@ body.joined-transparent .main-widget .chat-button {
   background: var(--surface-panel);
   box-shadow: 0 8px 20px #071216aa;
 }
+.menu-popover > :not([hidden]) + :not([hidden]) {
+  margin-top: 16px;
+}
+.menu-divider {
+  height: 0;
+  margin: 0;
+  border-top: 1px solid rgb(var(--accent-rgb) / 36%);
+}
 .menu-header {
   display: flex;
   align-items: center;
@@ -1064,8 +1133,8 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 14px;
 }
 .menu-section {
-  margin-bottom: 18px;
-  padding-bottom: 14px;
+  margin-bottom: 0;
+  padding-bottom: 18px;
   border-bottom: 1px solid rgb(var(--accent-rgb) / 28%);
 }
 .menu-popover > .menu-section:last-of-type {
@@ -1140,9 +1209,10 @@ body.joined-transparent .main-widget .chat-button {
   align-items: center;
   gap: 6px;
 }
-.name-form label {
-  color: #d8ebe3;
-  font-size: 12px;
+.name-form label.menu-label {
+  margin: 0;
+  color: #9fbab0;
+  font-size: 11px;
 }
 .name-form input {
   flex: 1;
