@@ -779,7 +779,7 @@ function bindAvatarControls(scope = app) {
       if (!file) return;
 
       if (!isPngAvatarFile(file)) {
-        showError("Please select a PNG file.");
+        showError("Please select a png/jpg file.");
         return;
       }
 
