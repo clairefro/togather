@@ -160,9 +160,6 @@ button {
   font-size: 12px;
   letter-spacing: 0.01em;
   cursor: pointer;
-  transition:
-    transform 0.15s,
-    filter 0.15s;
 }
 .onboarding-name-form {
   width: 100%;
@@ -200,7 +197,7 @@ button {
 }
 .primary:hover {
   filter: brightness(1.08);
-  transform: translateY(-1px);
+  transform: none;
 }
 .primary:disabled,
 .quiet:disabled {
@@ -436,7 +433,6 @@ body.joined-transparent .main-widget .chat-button {
     0 5px 12px rgb(6 5 14 / 48%);
 }
 .icon-button:active {
-  transform: translateY(1px);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 10%),
     0 2px 5px rgb(6 5 14 / 36%);

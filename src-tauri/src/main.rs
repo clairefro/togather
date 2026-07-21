@@ -70,8 +70,6 @@ fn main() {
             } else {
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
                     .title("togather")
-                    .inner_size(440.0, 800.0)
-                    .min_inner_size(200.0, 200.0)
                     .decorations(false)
                     .transparent(true)
                     .always_on_top(true)
@@ -80,9 +78,6 @@ fn main() {
                     .expect("failed to create main window")
             };
 
-            let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(
-                440.0, 800.0,
-            )));
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
