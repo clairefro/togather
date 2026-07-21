@@ -602,6 +602,14 @@ function isPngAvatarDataUrl(value) {
   );
 }
 
+function isPngAvatarFile(file) {
+  if (!(file instanceof File)) return false;
+
+  const mimeType = typeof file.type === "string" ? file.type.trim() : "";
+  const name = typeof file.name === "string" ? file.name.toLowerCase() : "";
+  return mimeType === "image/png" || name.endsWith(".png");
+}
+
 function loadImageFromFile(file) {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
@@ -626,9 +634,7 @@ async function resizePngToDataUrl(file) {
     throw new Error("Choose a PNG image.");
   }
 
-  const isPng =
-    file.type === "image/png" || file.name.toLowerCase().endsWith(".png");
-  if (!isPng) throw new Error("Avatar must be a PNG image.");
+  if (!isPngAvatarFile(file)) throw new Error("Avatar must be a PNG image.");
 
   const image = await loadImageFromFile(file);
   const scale = Math.min(
@@ -771,6 +777,11 @@ function bindAvatarControls(scope = app) {
       const file = target.files?.[0];
       target.value = "";
       if (!file) return;
+
+      if (!isPngAvatarFile(file)) {
+        showError("Please select a PNG file.");
+        return;
+      }
 
       try {
         await applyAvatarFromFile(file);
@@ -1029,9 +1040,9 @@ function renderOnboarding(mode = "choose") {
   const chooseContent = `${inlineNameEditor}<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button>${enterCodeButton}${cancelCreateButton}${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
   const previousRoomCode = readLastRoomCode();
   const usePreviousRoomButton = previousRoomCode
-    ? '<button class="quiet" data-action="use-prev-room-id">Use previous room id</button>'
+    ? '<button type="button" class="use-prev-code-inline" data-action="use-prev-room-id" aria-label="Use previous room code" title="Use previous room code">↺</button>'
     : "";
-  const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code"><button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code" hidden>×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button>${usePreviousRoomButton}<button class="quiet" data-action="back">Back</button>`;
+  const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code">${usePreviousRoomButton}<button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code">×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
   const menuNameValue =
     state.menuOpen && typeof state.displayNameDraft === "string"
       ? state.displayNameDraft
@@ -1047,7 +1058,7 @@ function renderOnboarding(mode = "choose") {
   const roomSection = state.connected
     ? roomInfoMenuMarkup(connectedParticipantCount())
     : "";
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".onboarding-body"),
@@ -1127,12 +1138,10 @@ function renderOnboarding(mode = "choose") {
     .querySelector('[data-action="clear-code"]')
     ?.addEventListener("click", () => {
       const input = app.querySelector("#invite-code");
-      const clearButton = app.querySelector('[data-action="clear-code"]');
       if (!input) return;
 
       input.value = "";
       input.focus();
-      if (clearButton) clearButton.hidden = true;
       clearError();
     });
   app
@@ -1143,16 +1152,8 @@ function renderOnboarding(mode = "choose") {
     if (event.key === "Enter") joinPairing();
   });
   app.querySelector("#invite-code")?.addEventListener("input", () => {
-    const input = app.querySelector("#invite-code");
-    const clearButton = app.querySelector('[data-action="clear-code"]');
-    if (input && clearButton) clearButton.hidden = !input.value;
+    clearError();
   });
-
-  if (mode === "join") {
-    const input = app.querySelector("#invite-code");
-    const clearButton = app.querySelector('[data-action="clear-code"]');
-    if (input && clearButton) clearButton.hidden = !input.value;
-  }
 
   app
     .querySelector('[data-action="use-prev-room-id"]')
@@ -1161,13 +1162,11 @@ function renderOnboarding(mode = "choose") {
       if (!code) return;
 
       const input = app.querySelector("#invite-code");
-      const clearButton = app.querySelector('[data-action="clear-code"]');
       if (!input) return;
 
       input.value = code;
       input.focus();
       input.setSelectionRange(code.length, code.length);
-      if (clearButton) clearButton.hidden = !input.value;
     });
 
   bindAvatarControls(app);
@@ -1775,13 +1774,17 @@ function stepZoom(direction) {
 }
 
 function bindZoomMenuControls() {
-  app.querySelector('[data-action="zoom-in"]')?.addEventListener("click", () => {
-    stepZoom(1);
-  });
+  app
+    .querySelector('[data-action="zoom-in"]')
+    ?.addEventListener("click", () => {
+      stepZoom(1);
+    });
 
-  app.querySelector('[data-action="zoom-out"]')?.addEventListener("click", () => {
-    stepZoom(-1);
-  });
+  app
+    .querySelector('[data-action="zoom-out"]')
+    ?.addEventListener("click", () => {
+      stepZoom(-1);
+    });
 }
 
 function enableZoomKeyHandler() {

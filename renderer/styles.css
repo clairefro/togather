@@ -147,6 +147,12 @@ button {
   -webkit-user-select: none;
   cursor: default;
 }
+.onboarding-content {
+  width: min(100%, 400px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .onboarding-body * {
   cursor: default;
 }
@@ -197,7 +203,7 @@ button {
   background: var(--surface-input);
   color: #ecf8f3;
   padding: 8px 10px;
-  text-align: center;
+  text-align: left;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   user-select: text;
   -webkit-user-select: text;
@@ -283,7 +289,7 @@ button {
 }
 .code-input {
   width: 100%;
-  padding: 9px 32px 9px 9px;
+  padding: 9px 56px 9px 9px;
   border: 1px solid var(--control-outline);
   border-radius: 9px;
   outline: none;
@@ -301,6 +307,7 @@ button {
   position: absolute;
   top: 50%;
   right: 7px;
+  z-index: 2;
   width: 20px;
   height: 20px;
   margin: 0;
@@ -313,6 +320,25 @@ button {
   transform: translateY(-50%);
 }
 .clear-code:hover {
+  background: var(--glass-24);
+}
+.use-prev-code-inline {
+  position: absolute;
+  top: 50%;
+  right: 33px;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: #d8ece4;
+  background: var(--glass-14);
+  font-size: 12px;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+.use-prev-code-inline:hover {
   background: var(--glass-24);
 }
 .error {
