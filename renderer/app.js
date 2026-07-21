@@ -1114,6 +1114,12 @@ function renderWidget() {
   const currentChatInput = app.querySelector(".chat-form input");
   if (currentChatInput) state.chatDraft = currentChatInput.value;
 
+  const currentNameInput = app.querySelector("#display-name-input");
+  const shouldRefocusNameInput =
+    state.menuOpen && document.activeElement === currentNameInput;
+  const currentNameSelectionStart = currentNameInput?.selectionStart ?? null;
+  const currentNameSelectionEnd = currentNameInput?.selectionEnd ?? null;
+
   const shouldRefocusChatInput =
     state.chatOpen && document.activeElement?.matches(".chat-form input");
 
@@ -1163,6 +1169,21 @@ function renderWidget() {
   if (state.chatOpen) {
     renderMessages();
     setupChatInputTypingListener();
+  }
+  if (shouldRefocusNameInput) {
+    const nameInput = app.querySelector("#display-name-input");
+    if (nameInput) {
+      nameInput.focus();
+      if (
+        Number.isInteger(currentNameSelectionStart) &&
+        Number.isInteger(currentNameSelectionEnd)
+      ) {
+        nameInput.setSelectionRange(
+          currentNameSelectionStart,
+          currentNameSelectionEnd,
+        );
+      }
+    }
   }
   if (shouldRefocusChatInput) {
     app.querySelector(".chat-form input")?.focus();
