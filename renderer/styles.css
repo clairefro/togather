@@ -819,7 +819,7 @@ body.joined-transparent .main-widget .chat-button {
 .peer-chirp {
   position: absolute;
   left: 50%;
-  bottom: calc(100% + 2px);
+  bottom: calc(100% - 10px);
   transform: translateX(-50%);
   z-index: 6;
   max-width: min(160%, 180px);
@@ -899,7 +899,7 @@ body.joined-transparent .main-widget .chat-button {
     font-size: 10px;
     padding: 3px 6px;
     max-width: min(170%, 150px);
-    bottom: calc(100% + 1px);
+    bottom: calc(100% - 8px);
   }
 
   .peer-idle-since {
