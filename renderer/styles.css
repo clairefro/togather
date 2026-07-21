@@ -816,6 +816,27 @@ body.joined-transparent .main-widget .chat-button {
   text-align: center;
   color: inherit;
 }
+.peer-chirp {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 2px);
+  transform: translateX(-50%);
+  z-index: 6;
+  max-width: min(160%, 180px);
+  margin: 0;
+  padding: 4px 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 9px;
+  color: #e8f3ee;
+  background: rgb(14 20 28 / 78%);
+  font-size: 11px;
+  line-height: 1.3;
+  text-align: center;
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .peer-card .status-badge {
   top: 4px;
   right: 4px;
@@ -872,6 +893,13 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-caption-text {
     font-size: 12px;
+  }
+
+  .peer-chirp {
+    font-size: 10px;
+    padding: 3px 6px;
+    max-width: min(170%, 150px);
+    bottom: calc(100% + 1px);
   }
 
   .peer-idle-since {
@@ -1105,8 +1133,8 @@ body.joined-transparent .main-widget .chat-button {
 }
 .zoom-step-button {
   width: 24px;
-  height: 24px;
-  padding: 0;
+  height: 28px;
+  padding: 3px 0;
   font-size: 14px;
   line-height: 1;
 }

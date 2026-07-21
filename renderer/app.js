@@ -120,6 +120,8 @@ const PRESENCE_WATCHDOG_MS = 1000;
 const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
 const STATUS_MAX_TEXT_LENGTH = 80;
+const PEER_CHIRP_MAX_LENGTH = 120;
+const PEER_CHIRP_VISIBLE_MS = 10_000;
 const ZOOM_NOTICE_DURATION_MS = 900;
 const STATUS_EMOJI_OPTIONS = [
   { emoji: "💭", label: "Thinking" },
@@ -509,6 +511,13 @@ function normalizeStatusText(value) {
   return value.trim().slice(0, STATUS_MAX_TEXT_LENGTH);
 }
 
+function normalizePeerChirpText(value) {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.slice(0, PEER_CHIRP_MAX_LENGTH);
+}
+
 function readStatusEmoji() {
   try {
     return normalizeStatusEmoji(localStorage.getItem(STATUS_EMOJI_KEY) ?? "");
@@ -857,6 +866,8 @@ function ensurePeer(peerId) {
     avatar: "",
     statusEmoji: "",
     statusText: "",
+    chirpText: "",
+    chirpToken: 0,
     lastSeenAt: Date.now(),
     idleSinceAt: null,
   };
@@ -1879,13 +1890,17 @@ function renderWidget() {
       const characterColor = chatNameColor(peerId);
       const hasAvatar = isPngAvatarDataUrl(peer?.avatar);
       const status = statusBadgeMarkup(peer?.statusEmoji, peer?.statusText);
+      const chirpText = normalizePeerChirpText(peer?.chirpText);
+      const chirpMarkup = chirpText
+        ? `<p class="peer-chirp" title="${escapeAttribute(chirpText)}">${escapeHtml(chirpText)}</p>`
+        : "";
 
       const isTyping = state.typingPeers.has(peerId);
       const characterContent = hasAvatar
         ? avatarMarkup(peer.avatar, caption, "peer-avatar")
         : `<svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg>`;
 
-      return `<div class="peer-card ${presence}"><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div><div class="character ${presence} ${hasAvatar ? "has-avatar" : ""}" style="--character-color:${characterColor}">${characterContent}${status}${isTyping ? '<div class="typing-indicator"><span></span><span></span><span></span></div>' : ""}</div></div>`;
+      return `<div class="peer-card ${presence}"><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div><div class="character ${presence} ${hasAvatar ? "has-avatar" : ""}" style="--character-color:${characterColor}">${chirpMarkup}${characterContent}${status}${isTyping ? '<div class="typing-indicator"><span></span><span></span><span></span></div>' : ""}</div></div>`;
     })
     .join("");
 
@@ -2455,6 +2470,7 @@ bridge.onEvent((event) => {
       peer.presence = "idle";
       peer.lastSeenAt = Date.now();
       peer.idleSinceAt = Date.now();
+      peer.chirpText = "";
       state.connectedPeers.delete(event.peer);
       if (event.peer !== state.selfPeerId) {
         pushPeerNotice("left", event.peer);
@@ -2487,11 +2503,22 @@ bridge.onEvent((event) => {
       const peer = ensurePeer(event.peer);
       peer.lastSeenAt = Date.now();
       event.displayName = peer.displayName || "";
+      peer.chirpText = normalizePeerChirpText(event.text);
+      const chirpToken = Date.now() + Math.random();
+      peer.chirpToken = chirpToken;
+      setTimeout(() => {
+        const currentPeer = state.peers.get(event.peer);
+        if (!currentPeer) return;
+        if (currentPeer.chirpToken !== chirpToken) return;
+
+        currentPeer.chirpText = "";
+        if (app.querySelector(".main-widget")) renderWidget();
+      }, PEER_CHIRP_VISIBLE_MS);
       state.typingPeers.delete(event.peer);
     }
 
     pushUnreadChatEntry(event, true);
-    if (!state.chatOpen && app.querySelector(".main-widget")) renderWidget();
+    if (app.querySelector(".main-widget")) renderWidget();
     renderMessages();
   } else if (event.type === "typing") {
     if (typeof event.peer === "string") {
