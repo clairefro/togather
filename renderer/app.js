@@ -104,6 +104,8 @@ const app = document.querySelector("#app");
 const LAST_ROOM_CODE_KEY = "togather.last-room-code.v1";
 const DISPLAY_NAME_KEY = "togather.display-name.v1";
 const AVATAR_KEY = "togather.avatar-data-url.v1";
+const STATUS_EMOJI_KEY = "togather.status-emoji.v1";
+const STATUS_TEXT_KEY = "togather.status-text.v1";
 const ZOOM_LEVEL_KEY = "togather.zoom-level.v2";
 const MIN_ZOOM = 1.0;
 const MAX_ZOOM = 1.6;
@@ -117,6 +119,42 @@ const PRESENCE_HEARTBEAT_MS = 5000;
 const PRESENCE_WATCHDOG_MS = 1000;
 const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
+const STATUS_MAX_TEXT_LENGTH = 80;
+const STATUS_EMOJI_OPTIONS = [
+  { emoji: "💭", label: "Thinking" },
+  { emoji: "☕", label: "Coffee" },
+  { emoji: "🎧", label: "Focus" },
+  { emoji: "😴", label: "Away" },
+  { emoji: "🔥", label: "Locked in" },
+  { emoji: "🌈", label: "Good vibes" },
+  { emoji: "🚀", label: "Building" },
+  { emoji: "🤝", label: "Open" },
+  { emoji: "👋", label: "Available" },
+  { emoji: "🧠", label: "Deep work" },
+  { emoji: "✅", label: "In the zone" },
+  { emoji: "🛠️", label: "Fixing" },
+  { emoji: "📚", label: "Learning" },
+  { emoji: "🧪", label: "Experimenting" },
+  { emoji: "📝", label: "Writing" },
+  { emoji: "📞", label: "In a call" },
+  { emoji: "🎯", label: "Heads down" },
+  { emoji: "🌱", label: "Slow pace" },
+  { emoji: "⚡", label: "Fast pace" },
+  { emoji: "🧩", label: "Problem solving" },
+  { emoji: "🍜", label: "Lunch" },
+  { emoji: "🏃", label: "Stepped away" },
+  { emoji: "🏖️", label: "Taking a break" },
+  { emoji: "🌙", label: "Night mode" },
+  { emoji: "🐢", label: "Slow and steady" },
+  { emoji: "🐇", label: "Quick sprint" },
+  { emoji: "🎨", label: "Designing" },
+  { emoji: "🔍", label: "Investigating" },
+  { emoji: "🧹", label: "Tidying up" },
+  { emoji: "📦", label: "Shipping" },
+];
+const STATUS_EMOJI_SET = new Set(
+  STATUS_EMOJI_OPTIONS.map((option) => option.emoji),
+);
 const COLOR_SATURATION_STEPS = [62, 68, 74, 80, 56];
 const COLOR_LIGHTNESS_STEPS = [52, 58, 64, 70, 46];
 const COLOR_HUE_STEP = 47;
@@ -131,6 +169,10 @@ const state = {
   displayName: "",
   displayNameDraft: "",
   avatar: "",
+  statusEmoji: "",
+  statusText: "",
+  statusEmojiDraft: "",
+  statusTextDraft: "",
   lastActivityAt: Date.now(),
   lastPresenceSentAt: 0,
   inviteCode: "",
@@ -453,6 +495,56 @@ function saveAvatar(value) {
   }
 }
 
+function normalizeStatusEmoji(value) {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim();
+  return STATUS_EMOJI_SET.has(normalized) ? normalized : "";
+}
+
+function normalizeStatusText(value) {
+  if (typeof value !== "string") return "";
+
+  return value.trim().slice(0, STATUS_MAX_TEXT_LENGTH);
+}
+
+function readStatusEmoji() {
+  try {
+    return normalizeStatusEmoji(localStorage.getItem(STATUS_EMOJI_KEY) ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function readStatusText() {
+  try {
+    return normalizeStatusText(localStorage.getItem(STATUS_TEXT_KEY) ?? "");
+  } catch {
+    return "";
+  }
+}
+
+function saveStatus(statusEmoji, statusText) {
+  const normalizedEmoji = normalizeStatusEmoji(statusEmoji);
+  const normalizedText = normalizeStatusText(statusText);
+
+  try {
+    if (normalizedEmoji) {
+      localStorage.setItem(STATUS_EMOJI_KEY, normalizedEmoji);
+      if (normalizedText) {
+        localStorage.setItem(STATUS_TEXT_KEY, normalizedText);
+      } else {
+        localStorage.removeItem(STATUS_TEXT_KEY);
+      }
+    } else {
+      localStorage.removeItem(STATUS_EMOJI_KEY);
+      localStorage.removeItem(STATUS_TEXT_KEY);
+    }
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
 function avatarAltText(name) {
   const label = normalizeDisplayName(name) || defaultDisplayName() || "avatar";
   return `${label}'s avatar`;
@@ -464,6 +556,37 @@ function avatarMarkup(avatar, name, className) {
   }
 
   return `<div class="${className} fallback-avatar" aria-hidden="true"><svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg></div>`;
+}
+
+function statusBadgeMarkup(statusEmoji, statusText, className = "status-badge") {
+  const emoji = normalizeStatusEmoji(statusEmoji);
+  if (!emoji) return "";
+
+  const text = normalizeStatusText(statusText);
+  const title = text ? ` title="${escapeAttribute(text)}"` : "";
+  const aria = text
+    ? ` aria-label="Status: ${escapeAttribute(text)}"`
+    : ' aria-hidden="true"';
+
+  return `<span class="${className}"${title}${aria}>${escapeHtml(emoji)}</span>`;
+}
+
+function buildLocalProfilePayload() {
+  return {
+    displayName: state.displayName,
+    avatar: state.avatar,
+    statusEmoji: state.statusEmoji,
+    statusText: state.statusText,
+  };
+}
+
+async function sendLocalProfile() {
+  if (!state.connected) return;
+
+  await bridge.send({
+    type: "set-profile",
+    ...buildLocalProfilePayload(),
+  });
 }
 
 function isPngAvatarDataUrl(value) {
@@ -534,13 +657,7 @@ async function applyAvatarFromFile(file) {
   state.avatar = avatar;
   saveAvatar(avatar);
 
-  if (state.connected) {
-    await bridge.send({
-      type: "set-profile",
-      displayName: state.displayName,
-      avatar,
-    });
-  }
+  await sendLocalProfile();
 
   rerenderAfterAvatarUpdate();
 }
@@ -565,13 +682,7 @@ async function clearAvatar() {
   state.avatar = "";
   saveAvatar("");
 
-  if (state.connected) {
-    await bridge.send({
-      type: "set-profile",
-      displayName: state.displayName,
-      avatar: "",
-    });
-  }
+  await sendLocalProfile();
 
   rerenderAfterAvatarUpdate();
 }
@@ -664,6 +775,8 @@ function ensurePeer(peerId) {
     presence: "present",
     displayName: "",
     avatar: "",
+    statusEmoji: "",
+    statusText: "",
     lastSeenAt: Date.now(),
     idleSinceAt: null,
   };
@@ -1179,6 +1292,8 @@ function bindNameMenu() {
     popover.hidden = !state.menuOpen;
     if (state.menuOpen) {
       state.displayNameDraft = input.value || defaultDisplayName();
+      state.statusEmojiDraft = state.statusEmoji;
+      state.statusTextDraft = state.statusText;
       requestAnimationFrame(() => {
         if (!state.menuOpen || popover.hidden) return;
 
@@ -1199,6 +1314,8 @@ function bindNameMenu() {
 
       input.value = state.displayName;
       state.displayNameDraft = defaultDisplayName();
+      state.statusEmojiDraft = state.statusEmoji;
+      state.statusTextDraft = state.statusText;
       state.menuOpen = false;
       popover.hidden = true;
     });
@@ -1236,11 +1353,7 @@ function bindNameMenu() {
     saveDisplayName(state.displayName);
 
     try {
-      await bridge.send({
-        type: "set-profile",
-        displayName: state.displayName,
-        avatar: state.avatar,
-      });
+      await sendLocalProfile();
       state.menuOpen = false;
       popover.hidden = true;
       if (
@@ -1266,6 +1379,102 @@ function bindNameMenu() {
   syncNameEditorControls();
 }
 
+function syncStatusEditorControls() {
+  const emojiInput = app.querySelector("#status-emoji-input");
+  const textInput = app.querySelector("#status-text-input");
+  const clearButton = app.querySelector('[data-action="clear-status"]');
+  const emojiButtons = app.querySelectorAll('[data-action="pick-status-emoji"]');
+  if (!emojiInput || !textInput || !clearButton) return;
+
+  const selectedEmoji = normalizeStatusEmoji(emojiInput.value);
+  emojiInput.value = selectedEmoji;
+
+  for (const button of emojiButtons) {
+    const emoji = button.getAttribute("data-status-emoji") || "";
+    button.classList.toggle("is-selected", emoji === selectedEmoji);
+    button.setAttribute("aria-pressed", emoji === selectedEmoji ? "true" : "false");
+  }
+
+  const hasStatus = selectedEmoji !== "";
+  if (!hasStatus && textInput.value) {
+    textInput.value = "";
+  }
+  clearButton.hidden = !hasStatus && !textInput.value.trim();
+}
+
+function bindStatusMenu() {
+  const emojiInput = app.querySelector("#status-emoji-input");
+  const textInput = app.querySelector("#status-text-input");
+  const saveButton = app.querySelector('[data-action="save-status"]');
+  const clearButton = app.querySelector('[data-action="clear-status"]');
+  const emojiButtons = app.querySelectorAll('[data-action="pick-status-emoji"]');
+  if (!emojiInput || !textInput || !saveButton || !clearButton) return;
+
+  const commitStatus = async () => {
+    const nextEmoji = normalizeStatusEmoji(emojiInput.value);
+    const nextText = nextEmoji ? normalizeStatusText(textInput.value) : "";
+
+    state.statusEmoji = nextEmoji;
+    state.statusText = nextText;
+    state.statusEmojiDraft = nextEmoji;
+    state.statusTextDraft = nextText;
+    saveStatus(nextEmoji, nextText);
+
+    try {
+      await sendLocalProfile();
+    } catch (error) {
+      showError(error);
+    }
+
+    if (app.querySelector(".main-widget")) renderWidget();
+  };
+
+  for (const button of emojiButtons) {
+    button.addEventListener("click", () => {
+      const emoji = normalizeStatusEmoji(
+        button.getAttribute("data-status-emoji") || "",
+      );
+      emojiInput.value = emojiInput.value === emoji ? "" : emoji;
+      syncStatusEditorControls();
+      void commitStatus();
+    });
+  }
+
+  textInput.addEventListener("change", () => {
+    void commitStatus();
+  });
+
+  textInput.addEventListener("input", () => {
+    syncStatusEditorControls();
+  });
+
+  textInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    void commitStatus();
+  });
+
+  saveButton.addEventListener("click", () => {
+    void commitStatus();
+  });
+
+  clearButton.addEventListener("click", () => {
+    state.statusEmoji = "";
+    state.statusText = "";
+    state.statusEmojiDraft = "";
+    state.statusTextDraft = "";
+    saveStatus("", "");
+    emojiInput.value = "";
+    textInput.value = "";
+
+    void sendLocalProfile().catch((error) => showError(error));
+
+    if (app.querySelector(".main-widget")) renderWidget();
+  });
+
+  syncStatusEditorControls();
+}
+
 function closeAllPopups() {
   state.menuOpen = false;
   state.chatOpen = false;
@@ -1283,7 +1492,13 @@ function enableEscapeKeyHandler() {
       if (menuOpen || chatOpen) {
         event.preventDefault();
         closeAllPopups();
-        renderWidget();
+
+        // Only re-render the room widget when that UI is active.
+        // On onboarding screens, forcing renderWidget() can drop into
+        // a disconnected dark "Crickets..." state.
+        if (app.querySelector(".main-widget")) {
+          renderWidget();
+        }
       }
     }
   });
@@ -1454,6 +1669,21 @@ function renderWidget() {
   const shouldRefocusChatInput =
     state.chatOpen && document.activeElement?.matches(".chat-form input");
 
+  const currentStatusEmojiInput = app.querySelector("#status-emoji-input");
+  const currentStatusTextInput = app.querySelector("#status-text-input");
+  if (state.menuOpen && currentStatusEmojiInput && currentStatusTextInput) {
+    state.statusEmojiDraft = currentStatusEmojiInput.value;
+    state.statusTextDraft = currentStatusTextInput.value;
+  }
+  const menuStatusEmojiValue =
+    state.menuOpen && typeof state.statusEmojiDraft === "string"
+      ? state.statusEmojiDraft
+      : state.statusEmoji;
+  const menuStatusTextValue =
+    state.menuOpen && typeof state.statusTextDraft === "string"
+      ? state.statusTextDraft
+      : state.statusText;
+
   const aggregate = aggregatePeerPresence();
   const peerItems = activePeerIds()
     .sort((a, b) => peerDisplayName(a).localeCompare(peerDisplayName(b)))
@@ -1463,13 +1693,14 @@ function renderWidget() {
       const caption = peer?.displayName || peerShortId(peerId);
       const characterColor = chatNameColor(peerId);
       const hasAvatar = isPngAvatarDataUrl(peer?.avatar);
+      const status = statusBadgeMarkup(peer?.statusEmoji, peer?.statusText);
 
       const isTyping = state.typingPeers.has(peerId);
       const characterContent = hasAvatar
         ? avatarMarkup(peer.avatar, caption, "peer-avatar")
         : `<svg viewBox="0 0 90 90"><circle cx="45" cy="45" r="32"/><circle class="eye" cx="34" cy="42" r="4"/><circle class="eye" cx="56" cy="42" r="4"/><path d="M31 57 Q45 65 59 57"/></svg>`;
 
-      return `<div class="peer-card ${presence}"><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div><div class="character ${presence} ${hasAvatar ? "has-avatar" : ""}" style="--character-color:${characterColor}">${characterContent}${isTyping ? '<div class="typing-indicator"><span></span><span></span><span></span></div>' : ""}</div></div>`;
+      return `<div class="peer-card ${presence}"><div class="peer-caption"><span class="status-dot"></span><span class="peer-caption-text">${escapeHtml(caption)}</span></div><div class="character ${presence} ${hasAvatar ? "has-avatar" : ""}" style="--character-color:${characterColor}">${characterContent}${status}${isTyping ? '<div class="typing-indicator"><span></span><span></span><span></span></div>' : ""}</div></div>`;
     })
     .join("");
 
@@ -1481,7 +1712,7 @@ function renderWidget() {
   const menuButtonLabel = "Menu";
   const minimizeButtonLabel = "Minimize";
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div><div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div><form class="name-form"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form><section class="status-form"><div class="status-form-header"><label class="menu-label" for="status-text-input">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><div class="status-emoji-picker" role="group" aria-label="Choose status emoji">${STATUS_EMOJI_OPTIONS.map((option) => `<button type="button" class="status-emoji-option ${option.emoji === menuStatusEmojiValue ? "is-selected" : ""}" data-action="pick-status-emoji" data-status-emoji="${escapeAttribute(option.emoji)}" aria-pressed="${option.emoji === menuStatusEmojiValue ? "true" : "false"}" title="${escapeAttribute(option.label)}" aria-label="${escapeAttribute(option.label)}">${escapeHtml(option.emoji)}</button>`).join("")}</div><div class="status-controls"><input id="status-text-input" class="status-text-input" maxlength="${STATUS_MAX_TEXT_LENGTH}" placeholder="status note (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuStatusTextValue)}"><button type="button" class="checkmark-button" data-action="save-status" title="Update" aria-label="Save status">✓</button></div></section></aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".menu-popover"),
@@ -1506,6 +1737,7 @@ function renderWidget() {
   });
 
   bindNameMenu();
+  bindStatusMenu();
   bindAvatarControls(app);
 
   if (state.chatOpen) {
@@ -1710,13 +1942,7 @@ function setConnection(connected) {
     startPresenceHeartbeat();
     startPresenceWatchdog();
     startSystemIdlePolling();
-    bridge
-      .send({
-        type: "set-profile",
-        displayName: state.displayName,
-        avatar: state.avatar,
-      })
-      .catch(showError);
+    sendLocalProfile().catch(showError);
   } else if (app.querySelector(".main-widget")) {
     clearIdleTimer();
     stopPresenceHeartbeat();
@@ -2106,6 +2332,8 @@ bridge.onEvent((event) => {
     const peer = ensurePeer(event.peer);
     peer.displayName = normalizeDisplayName(event.displayName ?? "");
     peer.avatar = isPngAvatarDataUrl(event.avatar) ? event.avatar : "";
+    peer.statusEmoji = normalizeStatusEmoji(event.statusEmoji ?? "");
+    peer.statusText = normalizeStatusText(event.statusText ?? "");
     peer.lastSeenAt = Date.now();
 
     if (app.querySelector(".main-widget")) renderWidget();
@@ -2176,6 +2404,10 @@ window.addEventListener("keydown", (event) => {
 state.displayName = readDisplayName();
 state.displayNameDraft = defaultDisplayName();
 state.avatar = readAvatar();
+state.statusEmoji = readStatusEmoji();
+state.statusText = readStatusText();
+state.statusEmojiDraft = state.statusEmoji;
+state.statusTextDraft = state.statusText;
 renderOnboarding();
 document.body.style.background = "transparent";
 void loadAppVersion();

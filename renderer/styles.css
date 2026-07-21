@@ -264,7 +264,11 @@ button {
 .character.idle {
   animation: none;
   opacity: 0.76;
-  filter: drop-shadow(0 0 11px currentColor);
+  filter: grayscale(1) saturate(0.2) drop-shadow(0 0 8px rgb(110 118 126 / 60%));
+}
+.character.idle .peer-avatar,
+.character.idle .fallback-avatar {
+  filter: grayscale(1);
 }
 .field-label {
   align-self: flex-start;
@@ -627,6 +631,27 @@ body.joined-transparent .main-widget .chat-button {
   border-radius: 0;
   background: rgb(255 255 255 / 6%);
 }
+.status-badge {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(12 16 22 / 74%);
+  border: 1px solid rgb(255 255 255 / 22%);
+  font-size: 13px;
+  line-height: 1;
+  pointer-events: none;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 18%);
+}
+.avatar-editor .status-badge {
+  right: 34px;
+}
 .avatar-delete-button {
   position: absolute;
   top: 6px;
@@ -662,6 +687,81 @@ body.joined-transparent .main-widget .chat-button {
   width: auto;
   padding: 6px 10px;
 }
+.status-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  text-align: left;
+}
+.status-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.status-clear-button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  color: #dbe7e1;
+  background: var(--glass-10);
+  line-height: 1;
+}
+.status-clear-button:hover {
+  background: var(--glass-16);
+}
+.status-controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+.status-emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
+  gap: 5px;
+}
+.status-emoji-option {
+  height: 30px;
+  min-width: 30px;
+  padding: 0;
+  border: 1px solid var(--control-outline);
+  border-radius: 8px;
+  background: var(--surface-input);
+  color: #eaf7f1;
+  font-size: 16px;
+  line-height: 1;
+}
+.status-emoji-option:hover {
+  border-color: var(--control-outline-strong);
+  background: var(--glass-16);
+}
+.status-emoji-option.is-selected {
+  border-color: rgb(var(--accent-rgb) / 72%);
+  background: rgb(var(--accent-rgb) / 20%);
+}
+.status-text-input {
+  min-width: 0;
+  border: 1px solid var(--control-outline);
+  border-radius: 10px;
+  background: var(--surface-input);
+  color: #ecf8f3;
+  height: 34px;
+  width: 100%;
+}
+.status-text-input {
+  padding: 0 10px;
+}
+.status-text-input:focus {
+  outline: none;
+  border-color: var(--control-outline-strong);
+  box-shadow: 0 0 0 2px rgb(230 236 242 / 18%);
+}
 .peer-caption {
   display: flex;
   align-items: center;
@@ -689,6 +789,13 @@ body.joined-transparent .main-widget .chat-button {
   white-space: nowrap;
   text-align: center;
   color: inherit;
+}
+.peer-card .status-badge {
+  top: 4px;
+  right: 4px;
+  width: 21px;
+  height: 21px;
+  font-size: 12px;
 }
 .peer-idle-since {
   color: #a9c0b7;
@@ -743,6 +850,15 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-idle-since {
     font-size: 9px;
+  }
+
+  .status-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .status-clear-button,
+  .status-form .checkmark-button {
+    justify-self: end;
   }
 }
 .peer-empty {
@@ -808,11 +924,12 @@ body.joined-transparent .main-widget .chat-button {
   top: 40px;
   right: 7px;
   left: 7px;
-  height: min(205px, calc(100% - 47px));
+  bottom: 7px;
+  min-height: 0;
   padding: 10px;
   border: 1px solid var(--control-outline);
   border-radius: 16px;
-  overflow: hidden;
+  overflow-y: auto;
   background: var(--surface-panel);
   box-shadow: 0 12px 28px #071216aa;
 }
@@ -821,10 +938,13 @@ body.joined-transparent .main-widget .chat-button {
   top: 40px;
   right: 8px;
   left: 8px;
+  bottom: 8px;
   z-index: 40;
+  min-height: 0;
   padding: 10px;
   border: 1px solid var(--control-outline);
   border-radius: 12px;
+  overflow-y: auto;
   background: var(--surface-panel);
   box-shadow: 0 8px 20px #071216aa;
 }

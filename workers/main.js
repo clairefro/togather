@@ -6,6 +6,20 @@ import Hyperswarm from "hyperswarm";
 const PRESENCE_STATES = new Set(["present", "idle"]);
 const MAX_CHAT_LENGTH = 2_000;
 const MAX_AVATAR_DATA_URL_LENGTH = 400000;
+const STATUS_MAX_TEXT_LENGTH = 80;
+const STATUS_EMOJI_OPTIONS = [
+  "💭",
+  "☕",
+  "🎧",
+  "😴",
+  "🔥",
+  "🌈",
+  "🚀",
+  "🤝",
+  "👋",
+  "🧠",
+];
+const STATUS_EMOJI_SET = new Set(STATUS_EMOJI_OPTIONS);
 const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
   "ancient",
@@ -219,6 +233,8 @@ let inputBuffer = "";
 let localPresence = "present";
 let localDisplayName = "";
 let localAvatar = "";
+let localStatusEmoji = "";
+let localStatusText = "";
 
 function emit(event) {
   process.stdout.write(`${JSON.stringify(event)}\n`);
@@ -301,6 +317,19 @@ function parseAvatar(value) {
   return value;
 }
 
+function parseStatusEmoji(value) {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim();
+  return STATUS_EMOJI_SET.has(normalized) ? normalized : "";
+}
+
+function parseStatusText(value) {
+  if (typeof value !== "string") return "";
+
+  return value.trim().slice(0, STATUS_MAX_TEXT_LENGTH);
+}
+
 function receivePeerMessage(line, fromPeer) {
   let message;
 
@@ -328,7 +357,16 @@ function receivePeerMessage(line, fromPeer) {
     try {
       const displayName = parseDisplayName(message.displayName ?? "");
       const avatar = parseAvatar(message.avatar ?? "");
-      emit({ type: "profile", peer: fromPeer, displayName, avatar });
+      const statusEmoji = parseStatusEmoji(message.statusEmoji ?? "");
+      const statusText = parseStatusText(message.statusText ?? "");
+      emit({
+        type: "profile",
+        peer: fromPeer,
+        displayName,
+        avatar,
+        statusEmoji,
+        statusText,
+      });
     } catch {
       // Ignore invalid profile payloads from peers.
     }
@@ -350,6 +388,8 @@ function attachPeer(socket, info) {
     type: "profile",
     displayName: localDisplayName,
     avatar: localAvatar,
+    statusEmoji: localStatusEmoji,
+    statusText: localStatusText,
   });
 
   socket.on("data", (chunk) => {
@@ -450,10 +490,14 @@ async function handleCommand(command) {
     case "set-profile": {
       localDisplayName = parseDisplayName(command.displayName ?? "");
       localAvatar = parseAvatar(command.avatar ?? "");
+      localStatusEmoji = parseStatusEmoji(command.statusEmoji ?? "");
+      localStatusText = parseStatusText(command.statusText ?? "");
       sendToPeers({
         type: "profile",
         displayName: localDisplayName,
         avatar: localAvatar,
+        statusEmoji: localStatusEmoji,
+        statusText: localStatusText,
       });
       return;
     }
