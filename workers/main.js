@@ -441,7 +441,7 @@ async function handleCommand(command) {
     case "create-pairing": {
       const roomCode = createRoomCode();
       await joinTopic(crypto.hash(b4a.from(roomCode)), {
-        client: false,
+        client: true,
         server: true,
       });
       emit({ type: "invite", code: roomCode });
@@ -453,7 +453,7 @@ async function handleCommand(command) {
       emit({ type: "joined" });
       await joinTopic(crypto.hash(b4a.from(roomCode)), {
         client: true,
-        server: false,
+        server: true,
       });
       return;
     }
