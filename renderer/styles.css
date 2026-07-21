@@ -61,6 +61,9 @@ input {
 button {
   border: 0;
   cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .widget {
   position: relative;
