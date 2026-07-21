@@ -418,6 +418,8 @@ button {
 .booting {
   display: flex;
   align-items: center;
+  justify-content: center;
+  align-self: center;
   gap: 6px;
   margin: 10px 0 0;
   color: #c2d9d0;
@@ -741,52 +743,99 @@ body.joined-transparent .main-widget .chat-button {
 .status-clear-button:hover {
   background: var(--glass-16);
 }
-.status-controls {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px;
+.status-clear-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.status-emoji-trigger {
+  display: inline-flex;
   align-items: center;
-}
-.status-emoji-picker {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(30px, 1fr));
-  gap: 5px;
-}
-.status-emoji-option {
-  height: 30px;
-  min-width: 30px;
-  padding: 0;
+  width: auto;
+  max-width: 100%;
+  min-height: 32px;
+  padding: 7px 9px;
   border: 1px solid var(--control-outline);
   border-radius: 8px;
-  background: var(--surface-input);
-  color: #eaf7f1;
-  font-size: 16px;
-  line-height: 1;
-}
-.status-emoji-option:hover {
-  border-color: var(--control-outline-strong);
-  background: var(--glass-16);
-}
-.status-emoji-option.is-selected {
-  border-color: rgb(var(--accent-rgb) / 72%);
-  background: rgb(var(--accent-rgb) / 20%);
-}
-.status-text-input {
-  min-width: 0;
-  border: 1px solid var(--control-outline);
-  border-radius: 10px;
-  background: var(--surface-input);
   color: #ecf8f3;
-  height: 34px;
-  width: 100%;
+  background: var(--surface-input);
+  text-align: left;
+  font-size: 12px;
 }
-.status-text-input {
-  padding: 0 10px;
-}
-.status-text-input:focus {
-  outline: none;
+.status-emoji-trigger:hover {
   border-color: var(--control-outline-strong);
-  box-shadow: 0 0 0 2px rgb(230 236 242 / 18%);
+}
+.status-picker-layer {
+  position: absolute;
+  inset: 35px 0 0;
+  z-index: 210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.status-picker-layer[hidden] {
+  display: none !important;
+}
+.status-picker-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  background: rgb(8 12 18 / 55%);
+  pointer-events: auto;
+}
+.status-picker-panel {
+  position: relative;
+  z-index: 1;
+  width: min(322px, calc(100% - 22px));
+  border: 1px solid var(--control-outline);
+  border-radius: 11px;
+  overflow: hidden;
+  background: rgb(11 15 20 / 88%);
+  box-shadow: 0 14px 30px rgb(0 0 0 / 38%);
+  pointer-events: auto;
+}
+.status-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 6px;
+  color: #cde2d9;
+  font-size: 12px;
+}
+.status-picker-close {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  color: #dbe7e1;
+  background: var(--glass-10);
+}
+.status-emoji-picker-widget {
+  width: 100%;
+  height: 310px;
+  border: 0;
+  --background: #161b22;
+  --border-color: var(--control-outline);
+  --category-icon-size: 16px;
+  --emoji-size: 1.25rem;
+  --indicator-color: rgb(var(--accent-rgb) / 75%);
+  --input-border-color: var(--control-outline);
+  --input-border-radius: 7px;
+  --input-font-color: #ecf8f3;
+  --input-font-size: 12px;
+  --input-padding: 6px 8px;
+  --num-columns: 8;
+  --outline-color: var(--control-outline-strong);
+  --rgb-accent: var(--accent-rgb);
+  --rgb-background: 22, 27, 34;
+  --rgb-color: 236, 248, 243;
+  --rgb-input: 30, 34, 40;
+  --rgb-input-border: 230, 236, 242;
+  --shadow: none;
 }
 .peer-caption {
   display: flex;
@@ -906,12 +955,7 @@ body.joined-transparent .main-widget .chat-button {
     font-size: 9px;
   }
 
-  .status-controls {
-    grid-template-columns: 1fr;
-  }
-
-  .status-clear-button,
-  .status-form .checkmark-button {
+  .status-clear-button {
     justify-self: end;
   }
 }
@@ -1020,8 +1064,8 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 14px;
 }
 .menu-section {
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 18px;
+  padding-bottom: 14px;
   border-bottom: 1px solid rgb(var(--accent-rgb) / 28%);
 }
 .menu-popover > .menu-section:last-of-type {

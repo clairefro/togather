@@ -7,20 +7,9 @@ const PRESENCE_STATES = new Set(["present", "idle"]);
 const MAX_CHAT_LENGTH = 2_000;
 const MAX_AVATAR_DATA_URL_LENGTH = 400000;
 const STATUS_MAX_TEXT_LENGTH = 80;
-const STATUS_EMOJI_OPTIONS = [
-  "💭",
-  "☕",
-  "🎧",
-  "😴",
-  "🔥",
-  "🌈",
-  "🚀",
-  "🤝",
-  "👋",
-  "🧠",
-];
-const STATUS_EMOJI_SET = new Set(STATUS_EMOJI_OPTIONS);
-const ALPHANUMERIC = "abcdefghijklmnopqrstuvwxyz0123456789";
+const STATUS_EMOJI_MAX_LENGTH = 32;
+const ALPHANUMERIC =
+  "ABCDEFGHIJKLMNEOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const ADJECTIVES = [
   "ancient",
   "brave",
@@ -321,7 +310,8 @@ function parseStatusEmoji(value) {
   if (typeof value !== "string") return "";
 
   const normalized = value.trim();
-  return STATUS_EMOJI_SET.has(normalized) ? normalized : "";
+  if (!normalized) return "";
+  return normalized.slice(0, STATUS_EMOJI_MAX_LENGTH);
 }
 
 function parseStatusText(value) {

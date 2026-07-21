@@ -120,44 +120,10 @@ const PRESENCE_WATCHDOG_MS = 1000;
 const ACTIVITY_PRESENCE_THROTTLE_MS = 750;
 const SYSTEM_IDLE_POLL_MS = 1000;
 const STATUS_MAX_TEXT_LENGTH = 80;
+const STATUS_EMOJI_MAX_LENGTH = 32;
 const PEER_CHIRP_MAX_LENGTH = 120;
 const PEER_CHIRP_VISIBLE_MS = 10_000;
 const ZOOM_NOTICE_DURATION_MS = 900;
-const STATUS_EMOJI_OPTIONS = [
-  { emoji: "💭", label: "Thinking" },
-  { emoji: "☕", label: "Coffee" },
-  { emoji: "🎧", label: "Focus" },
-  { emoji: "😴", label: "Away" },
-  { emoji: "🔥", label: "Locked in" },
-  { emoji: "🌈", label: "Good vibes" },
-  { emoji: "🚀", label: "Building" },
-  { emoji: "🤝", label: "Open" },
-  { emoji: "👋", label: "Available" },
-  { emoji: "🧠", label: "Deep work" },
-  { emoji: "✅", label: "In the zone" },
-  { emoji: "🛠️", label: "Fixing" },
-  { emoji: "📚", label: "Learning" },
-  { emoji: "🧪", label: "Experimenting" },
-  { emoji: "📝", label: "Writing" },
-  { emoji: "📞", label: "In a call" },
-  { emoji: "🎯", label: "Heads down" },
-  { emoji: "🌱", label: "Slow pace" },
-  { emoji: "⚡", label: "Fast pace" },
-  { emoji: "🧩", label: "Problem solving" },
-  { emoji: "🍜", label: "Lunch" },
-  { emoji: "🏃", label: "Stepped away" },
-  { emoji: "🏖️", label: "Taking a break" },
-  { emoji: "🌙", label: "Night mode" },
-  { emoji: "🐢", label: "Slow and steady" },
-  { emoji: "🐇", label: "Quick sprint" },
-  { emoji: "🎨", label: "Designing" },
-  { emoji: "🔍", label: "Investigating" },
-  { emoji: "🧹", label: "Tidying up" },
-  { emoji: "📦", label: "Shipping" },
-];
-const STATUS_EMOJI_SET = new Set(
-  STATUS_EMOJI_OPTIONS.map((option) => option.emoji),
-);
 const COLOR_SATURATION_STEPS = [62, 68, 74, 80, 56];
 const COLOR_LIGHTNESS_STEPS = [52, 58, 64, 70, 46];
 const COLOR_HUE_STEP = 47;
@@ -176,6 +142,7 @@ const state = {
   statusText: "",
   statusEmojiDraft: "",
   statusTextDraft: "",
+  statusEmojiPickerOpen: false,
   lastActivityAt: Date.now(),
   lastPresenceSentAt: 0,
   inviteCode: "",
@@ -203,6 +170,7 @@ const state = {
   joinWaitTimer: null,
   startingPromise: null,
   appVersion: "",
+  sendQueue: Promise.resolve(),
 };
 
 function ioPayloadToString(payload) {
@@ -389,7 +357,15 @@ const bridge = {
     }
 
     if (!state.child) throw new Error("Could not start the peer worker.");
-    await state.child.write(`${JSON.stringify(object)}\n`);
+
+    const line = `${JSON.stringify(object)}\n`;
+    const writeTask = state.sendQueue.then(
+      () => state.child?.write(line),
+      () => state.child?.write(line),
+    );
+
+    state.sendQueue = writeTask.catch(() => {});
+    await writeTask;
   },
   onEvent(callback) {
     state.listeners.add(callback);
@@ -502,20 +478,14 @@ function normalizeStatusEmoji(value) {
   if (typeof value !== "string") return "";
 
   const normalized = value.trim();
-  return STATUS_EMOJI_SET.has(normalized) ? normalized : "";
+  if (!normalized) return "";
+  return normalized.slice(0, STATUS_EMOJI_MAX_LENGTH);
 }
 
 function normalizeStatusText(value) {
   if (typeof value !== "string") return "";
 
   return value.trim().slice(0, STATUS_MAX_TEXT_LENGTH);
-}
-
-function normalizePeerChirpText(value) {
-  if (typeof value !== "string") return "";
-
-  const normalized = value.trim().replace(/\s+/g, " ");
-  return normalized.slice(0, PEER_CHIRP_MAX_LENGTH);
 }
 
 function readStatusEmoji() {
@@ -553,6 +523,13 @@ function saveStatus(statusEmoji, statusText) {
   } catch {
     // Ignore localStorage write failures.
   }
+}
+
+function normalizePeerChirpText(value) {
+  if (typeof value !== "string") return "";
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized.slice(0, PEER_CHIRP_MAX_LENGTH);
 }
 
 function avatarAltText(name) {
@@ -594,9 +571,16 @@ function buildLocalProfilePayload() {
   };
 }
 
-async function sendLocalProfile() {
-  if (!state.connected) return;
+function clearStatusForNewRoomSession() {
+  state.statusEmoji = "";
+  state.statusText = "";
+  state.statusEmojiDraft = "";
+  state.statusTextDraft = "";
+  state.statusEmojiPickerOpen = false;
+  saveStatus("", "");
+}
 
+async function sendLocalProfile() {
   await bridge.send({
     type: "set-profile",
     ...buildLocalProfilePayload(),
@@ -788,7 +772,7 @@ function bindAvatarControls(scope = app) {
       if (!file) return;
 
       if (!isPngAvatarFile(file)) {
-        showError("Please select a png/jpg file.");
+        showError("Please select a png file.");
         return;
       }
 
@@ -1020,11 +1004,18 @@ function roomInfoMenuMarkup(peerCount) {
 }
 
 function nameMenuMarkup(menuNameValue) {
-  return `<form class="name-form menu-section"><label for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form>`;
+  return `<form class="name-form menu-section"><label class="menu-label" for="display-name-input">Display name</label><div class="name-input-row"><input id="display-name-input" maxlength="40" placeholder="${escapeHtml(nameEditorPlaceholder())}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuNameValue)}"><button type="submit" class="checkmark-button" data-action="save-name" title="Update" hidden aria-label="Save display name">✓</button></div></form>`;
 }
 
-function statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue) {
-  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label" for="status-text-input">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><div class="status-emoji-picker" role="group" aria-label="Choose status emoji">${STATUS_EMOJI_OPTIONS.map((option) => `<button type="button" class="status-emoji-option ${option.emoji === menuStatusEmojiValue ? "is-selected" : ""}" data-action="pick-status-emoji" data-status-emoji="${escapeAttribute(option.emoji)}" aria-pressed="${option.emoji === menuStatusEmojiValue ? "true" : "false"}" title="${escapeAttribute(option.label)}" aria-label="${escapeAttribute(option.label)}">${escapeHtml(option.emoji)}</button>`).join("")}</div><div class="status-controls"><input id="status-text-input" class="status-text-input" maxlength="${STATUS_MAX_TEXT_LENGTH}" placeholder="status note (optional)" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" value="${escapeHtml(menuStatusTextValue)}"><button type="button" class="checkmark-button" data-action="save-status" title="Update" aria-label="Save status">✓</button></div></section>`;
+function statusMenuMarkup(menuStatusEmojiValue) {
+  const triggerLabel = menuStatusEmojiValue
+    ? `${menuStatusEmojiValue} ▾`
+    : "Pick ▾";
+  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label">Status</label><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><button type="button" class="status-emoji-trigger" data-action="toggle-status-picker" aria-expanded="${state.statusEmojiPickerOpen ? "true" : "false"}" aria-label="Open emoji picker">${escapeHtml(triggerLabel)}</button></section>`;
+}
+
+function statusPickerLayerMarkup() {
+  return '<div class="status-picker-layer" data-status-picker-layer hidden><button type="button" class="status-picker-scrim" data-action="close-status-picker" aria-label="Close emoji picker"></button><div class="status-picker-panel" role="dialog" aria-modal="true" aria-label="Choose a status emoji"><div class="status-picker-header"><span>Status emoji</span><button type="button" class="icon-button status-picker-close" data-action="close-status-picker" aria-label="Close emoji picker">×</button></div><emoji-picker class="status-emoji-picker-widget" data-status-emoji-picker data-source="assets/vendor/emoji-picker-element-data/en/data.json"></emoji-picker></div></div>';
 }
 
 function renderOnboarding(mode = "choose") {
@@ -1062,14 +1053,10 @@ function renderOnboarding(mode = "choose") {
     state.menuOpen && typeof state.statusEmojiDraft === "string"
       ? state.statusEmojiDraft
       : state.statusEmoji;
-  const menuStatusTextValue =
-    state.menuOpen && typeof state.statusTextDraft === "string"
-      ? state.statusTextDraft
-      : state.statusText;
   const roomSection = state.connected
     ? roomInfoMenuMarkup(connectedParticipantCount())
     : "";
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Connect directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize">−</button><button class="icon-button" data-action="exit" aria-label="Exit">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Ambient-cowork directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${zoomMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".onboarding-body"),
@@ -1417,6 +1404,7 @@ function bindNameMenu() {
       state.displayNameDraft = input.value || defaultDisplayName();
       state.statusEmojiDraft = state.statusEmoji;
       state.statusTextDraft = state.statusText;
+      state.statusEmojiPickerOpen = false;
       requestAnimationFrame(() => {
         if (!state.menuOpen || popover.hidden) return;
 
@@ -1439,6 +1427,7 @@ function bindNameMenu() {
       state.displayNameDraft = defaultDisplayName();
       state.statusEmojiDraft = state.statusEmoji;
       state.statusTextDraft = state.statusText;
+      state.statusEmojiPickerOpen = false;
       state.menuOpen = false;
       popover.hidden = true;
     });
@@ -1504,45 +1493,39 @@ function bindNameMenu() {
 
 function syncStatusEditorControls() {
   const emojiInput = app.querySelector("#status-emoji-input");
-  const textInput = app.querySelector("#status-text-input");
   const clearButton = app.querySelector('[data-action="clear-status"]');
-  const emojiButtons = app.querySelectorAll(
-    '[data-action="pick-status-emoji"]',
+  const triggerButton = app.querySelector(
+    '[data-action="toggle-status-picker"]',
   );
-  if (!emojiInput || !textInput || !clearButton) return;
+  if (!emojiInput || !clearButton || !triggerButton) return;
 
   const selectedEmoji = normalizeStatusEmoji(emojiInput.value);
   emojiInput.value = selectedEmoji;
-
-  for (const button of emojiButtons) {
-    const emoji = button.getAttribute("data-status-emoji") || "";
-    button.classList.toggle("is-selected", emoji === selectedEmoji);
-    button.setAttribute(
-      "aria-pressed",
-      emoji === selectedEmoji ? "true" : "false",
-    );
-  }
+  triggerButton.textContent = selectedEmoji ? `${selectedEmoji} ▾` : "Pick ▾";
 
   const hasStatus = selectedEmoji !== "";
-  if (!hasStatus && textInput.value) {
-    textInput.value = "";
-  }
-  clearButton.hidden = !hasStatus && !textInput.value.trim();
+  clearButton.disabled = !hasStatus;
+  clearButton.setAttribute("aria-disabled", hasStatus ? "false" : "true");
 }
 
 function bindStatusMenu() {
   const emojiInput = app.querySelector("#status-emoji-input");
-  const textInput = app.querySelector("#status-text-input");
-  const saveButton = app.querySelector('[data-action="save-status"]');
   const clearButton = app.querySelector('[data-action="clear-status"]');
-  const emojiButtons = app.querySelectorAll(
-    '[data-action="pick-status-emoji"]',
+  const togglePickerButton = app.querySelector(
+    '[data-action="toggle-status-picker"]',
   );
-  if (!emojiInput || !textInput || !saveButton || !clearButton) return;
+  const pickerLayer = app.querySelector("[data-status-picker-layer]");
+  const pickerWidget = app.querySelector("[data-status-emoji-picker]");
+  const pickerScrim = app.querySelector(".status-picker-scrim");
+  const pickerCloseButton = app.querySelector(".status-picker-close");
+  const closePickerButtons = app.querySelectorAll(
+    '[data-action="close-status-picker"]',
+  );
+  if (!emojiInput || !clearButton) return;
 
   const commitStatus = async () => {
     const nextEmoji = normalizeStatusEmoji(emojiInput.value);
-    const nextText = nextEmoji ? normalizeStatusText(textInput.value) : "";
+    const nextText = "";
 
     state.statusEmoji = nextEmoji;
     state.statusText = nextText;
@@ -1550,60 +1533,74 @@ function bindStatusMenu() {
     state.statusTextDraft = nextText;
     saveStatus(nextEmoji, nextText);
 
-    if (state.connected) {
-      try {
-        await sendLocalProfile();
-      } catch (error) {
-        showError(error);
-      }
+    try {
+      await sendLocalProfile();
+    } catch (error) {
+      showError(error);
     }
-
-    if (app.querySelector(".main-widget")) renderWidget();
   };
 
-  for (const button of emojiButtons) {
-    button.addEventListener("click", () => {
-      const emoji = normalizeStatusEmoji(
-        button.getAttribute("data-status-emoji") || "",
+  const closePicker = () => {
+    state.statusEmojiPickerOpen = false;
+    if (pickerLayer) pickerLayer.hidden = true;
+    if (togglePickerButton) {
+      togglePickerButton.setAttribute("aria-expanded", "false");
+    }
+  };
+
+  // Always start from a closed picker layer after each render.
+  closePicker();
+
+  if (togglePickerButton && pickerLayer) {
+    togglePickerButton.addEventListener("click", () => {
+      state.statusEmojiPickerOpen = !state.statusEmojiPickerOpen;
+      pickerLayer.hidden = !state.statusEmojiPickerOpen;
+      togglePickerButton.setAttribute(
+        "aria-expanded",
+        state.statusEmojiPickerOpen ? "true" : "false",
       );
-      emojiInput.value = emojiInput.value === emoji ? "" : emoji;
-      syncStatusEditorControls();
-      void commitStatus();
     });
   }
 
-  textInput.addEventListener("change", () => {
-    void commitStatus();
-  });
+  for (const button of closePickerButtons) {
+    button.addEventListener("click", () => {
+      closePicker();
+    });
+  }
+  pickerScrim?.addEventListener("click", closePicker);
+  pickerCloseButton?.addEventListener("click", closePicker);
 
-  textInput.addEventListener("input", () => {
+  const applyPickedEmoji = async (detailLike) => {
+    let detail;
+    try {
+      detail = await Promise.resolve(detailLike);
+    } catch {
+      return;
+    }
+
+    const emoji = normalizeStatusEmoji(
+      detail?.unicode || detail?.emoji?.emoji || detail?.emoji?.unicode || "",
+    );
+    if (!emoji) return;
+
+    emojiInput.value = emoji;
+    closePicker();
     syncStatusEditorControls();
-  });
+    await commitStatus();
+  };
 
-  textInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    void commitStatus();
+  pickerWidget?.addEventListener("emoji-click-sync", (event) => {
+    void applyPickedEmoji(event?.detail);
   });
-
-  saveButton.addEventListener("click", () => {
-    void commitStatus();
+  pickerWidget?.addEventListener("emoji-click", (event) => {
+    void applyPickedEmoji(event?.detail);
   });
 
   clearButton.addEventListener("click", () => {
-    state.statusEmoji = "";
-    state.statusText = "";
-    state.statusEmojiDraft = "";
-    state.statusTextDraft = "";
-    saveStatus("", "");
     emojiInput.value = "";
-    textInput.value = "";
-
-    if (state.connected) {
-      void sendLocalProfile().catch((error) => showError(error));
-    }
-
-    if (app.querySelector(".main-widget")) renderWidget();
+    closePicker();
+    syncStatusEditorControls();
+    void commitStatus();
   });
 
   syncStatusEditorControls();
@@ -1612,10 +1609,13 @@ function bindStatusMenu() {
 function closeAllPopups() {
   state.menuOpen = false;
   state.chatOpen = false;
+  state.statusEmojiPickerOpen = false;
   const menuPopover = app.querySelector(".menu-popover");
   const chatPopover = app.querySelector(".chat-popover");
+  const statusPickerLayer = app.querySelector("[data-status-picker-layer]");
   if (menuPopover) menuPopover.hidden = true;
   if (chatPopover) chatPopover.hidden = true;
+  if (statusPickerLayer) statusPickerLayer.hidden = true;
 }
 
 function enableEscapeKeyHandler() {
@@ -1623,7 +1623,8 @@ function enableEscapeKeyHandler() {
     if (event.key === "Escape") {
       const menuOpen = state.menuOpen;
       const chatOpen = state.chatOpen;
-      if (menuOpen || chatOpen) {
+      const statusPickerOpen = state.statusEmojiPickerOpen;
+      if (menuOpen || chatOpen || statusPickerOpen) {
         event.preventDefault();
         closeAllPopups();
 
@@ -1873,19 +1874,13 @@ function renderWidget() {
     state.chatOpen && document.activeElement?.matches(".chat-form input");
 
   const currentStatusEmojiInput = app.querySelector("#status-emoji-input");
-  const currentStatusTextInput = app.querySelector("#status-text-input");
-  if (state.menuOpen && currentStatusEmojiInput && currentStatusTextInput) {
+  if (state.menuOpen && currentStatusEmojiInput) {
     state.statusEmojiDraft = currentStatusEmojiInput.value;
-    state.statusTextDraft = currentStatusTextInput.value;
   }
   const menuStatusEmojiValue =
     state.menuOpen && typeof state.statusEmojiDraft === "string"
       ? state.statusEmojiDraft
       : state.statusEmoji;
-  const menuStatusTextValue =
-    state.menuOpen && typeof state.statusTextDraft === "string"
-      ? state.statusTextDraft
-      : state.statusText;
 
   const aggregate = aggregatePeerPresence();
   const peerItems = activePeerIds()
@@ -1919,7 +1914,7 @@ function renderWidget() {
   const menuButtonLabel = "Menu";
   const minimizeButtonLabel = "Minimize";
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${zoomMenuMarkup()}${statusMenuMarkup(menuStatusEmojiValue, menuStatusTextValue)}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonLabel}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonLabel}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonLabel}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonLabel}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${zoomMenuMarkup()}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".menu-popover"),
@@ -2065,6 +2060,8 @@ async function createPairing() {
   if (state.creatingRoom) return;
 
   clearError();
+  clearStatusForNewRoomSession();
+  await sendLocalProfile().catch(() => {});
   state.creatingRoom = true;
   renderOnboarding("choose");
 
@@ -2098,6 +2095,8 @@ async function joinPairing() {
   state.inviteCode = code;
   saveLastRoomCode(code);
 
+  clearStatusForNewRoomSession();
+  await sendLocalProfile().catch(() => {});
   state.joiningRoom = true;
   clearTimeout(state.joinWaitTimer);
   state.joinWaitTimer = null;
@@ -2332,9 +2331,11 @@ function startPresenceHeartbeat() {
   if (!state.connected) return;
 
   sendCurrentPresence();
+  sendLocalProfile().catch(showError);
 
   state.presenceHeartbeatTimer = setInterval(() => {
     sendCurrentPresence();
+    sendLocalProfile().catch(showError);
   }, PRESENCE_HEARTBEAT_MS);
 }
 
@@ -2555,6 +2556,7 @@ bridge.onEvent((event) => {
     }
   } else if (event.type === "profile" && typeof event.peer === "string") {
     const peer = ensurePeer(event.peer);
+    if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
     peer.displayName = normalizeDisplayName(event.displayName ?? "");
     peer.avatar = isPngAvatarDataUrl(event.avatar) ? event.avatar : "";
     peer.statusEmoji = normalizeStatusEmoji(event.statusEmoji ?? "");
