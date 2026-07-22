@@ -1752,8 +1752,14 @@ function bindStatusMenu() {
     }
   };
 
-  // Always start from a closed picker layer after each render.
-  closePicker();
+  // Keep picker visibility in sync with state across re-renders.
+  if (pickerLayer) pickerLayer.hidden = !state.statusEmojiPickerOpen;
+  if (togglePickerButton) {
+    togglePickerButton.setAttribute(
+      "aria-expanded",
+      state.statusEmojiPickerOpen ? "true" : "false",
+    );
+  }
 
   if (togglePickerButton && pickerLayer) {
     togglePickerButton.addEventListener("click", () => {
@@ -2287,7 +2293,6 @@ async function createPairing() {
   if (state.creatingRoom) return;
 
   clearError();
-  clearStatusForNewRoomSession();
   await sendLocalProfile().catch(() => {});
   state.creatingRoom = true;
   renderOnboarding("choose");
@@ -2322,7 +2327,6 @@ async function joinPairing() {
   state.inviteCode = code;
   saveLastRoomCode(code);
 
-  clearStatusForNewRoomSession();
   await sendLocalProfile().catch(() => {});
   state.joiningRoom = true;
   clearTimeout(state.joinWaitTimer);
@@ -2867,7 +2871,7 @@ state.displayName = readDisplayName();
 state.displayNameDraft = defaultDisplayName();
 state.avatar = readAvatar();
 
-// Status is session-scoped; clear any persisted value from previous runs.
+// Clear persisted status at startup; runtime clears happen on room exit flows.
 saveStatus("", "");
 state.statusEmoji = readStatusEmoji();
 state.statusText = readStatusText();

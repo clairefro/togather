@@ -866,14 +866,14 @@ body.joined-transparent .main-widget .chat-button {
   width: auto;
   flex: 0 1 auto;
   max-width: 100%;
-  min-height: 32px;
-  padding: 7px 9px;
+  min-height: 34px;
+  padding: 7px 10px;
   border: 1px solid var(--control-outline);
   border-radius: 8px;
   color: #ecf8f3;
   background: var(--surface-input);
   text-align: left;
-  font-size: 12px;
+  font-size: 15px;
 }
 .status-emoji-trigger:hover {
   border-color: var(--control-outline-strong);
