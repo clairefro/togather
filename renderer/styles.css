@@ -1403,11 +1403,43 @@ body.joined-transparent .main-widget .chat-button {
   gap: 10px;
 }
 .sound-toggle {
-  width: 16px;
-  height: 16px;
+  position: relative;
+  width: 34px;
+  height: 20px;
   margin: 0;
+  padding: 0;
+  border: 1px solid var(--control-outline);
+  border-radius: 999px;
+  background: var(--glass-14);
   cursor: pointer;
-  accent-color: #86dcb5;
+  transition:
+    border-color 140ms ease,
+    background 140ms ease;
+}
+.sound-toggle::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d8ece4;
+  transition: transform 140ms ease;
+}
+.sound-toggle[aria-checked="true"] {
+  border-color: #86dcb5;
+  background: rgb(134 220 181 / 28%);
+}
+.sound-toggle[aria-checked="true"]::before {
+  transform: translateX(14px);
+}
+.sound-toggle:hover {
+  border-color: var(--control-outline-strong);
+}
+.sound-toggle:focus-visible {
+  outline: 2px solid rgb(134 220 181 / 60%);
+  outline-offset: 2px;
 }
 .checkmark-button {
   display: grid;

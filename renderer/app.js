@@ -1017,7 +1017,7 @@ function zoomMenuMarkup() {
 }
 
 function soundMenuMarkup() {
-  return `<div class="menu-section sound-menu-section"><div class="sound-toggle-row"><label class="menu-label" for="sound-enabled-toggle">Sound alerts</label><input id="sound-enabled-toggle" class="sound-toggle" type="checkbox" data-action="toggle-sounds" aria-label="Toggle sound alerts" ${state.soundEnabled ? "checked" : ""}></div><p class="zoom-shortcut-hint">Play on join and incoming messages</p></div>`;
+  return `<div class="menu-section sound-menu-section"><div class="sound-toggle-row"><label class="menu-label" id="sound-enabled-label">Sound alerts</label><button type="button" id="sound-enabled-toggle" class="sound-toggle" role="switch" aria-checked="${state.soundEnabled ? "true" : "false"}" aria-labelledby="sound-enabled-label" data-action="toggle-sounds" title="Toggle sound alerts"></button></div><p class="zoom-shortcut-hint">Play on join and incoming messages</p></div>`;
 }
 
 function roomInfoMenuMarkup(peerCount) {
@@ -1097,10 +1097,11 @@ function playAlertSound() {
 
 function bindSoundMenuControls() {
   const toggle = app.querySelector('[data-action="toggle-sounds"]');
-  if (!(toggle instanceof HTMLInputElement)) return;
+  if (!(toggle instanceof HTMLButtonElement)) return;
 
-  toggle.addEventListener("change", () => {
-    state.soundEnabled = Boolean(toggle.checked);
+  toggle.addEventListener("click", () => {
+    state.soundEnabled = !state.soundEnabled;
+    toggle.setAttribute("aria-checked", state.soundEnabled ? "true" : "false");
     saveSoundEnabled(state.soundEnabled);
     if (state.soundEnabled) {
       getSoundAlertAudio();
