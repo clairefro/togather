@@ -574,7 +574,7 @@ body.joined-transparent .main-widget .chat-button {
   flex-wrap: wrap;
   justify-content: center;
   align-content: center;
-  align-items: center;
+  align-items: stretch;
   align-self: stretch;
   row-gap: 1px;
   column-gap: 1px;
@@ -587,9 +587,9 @@ body.joined-transparent .main-widget .chat-button {
   flex: 0 1 260px;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   height: auto;
-  align-self: center;
+  align-self: stretch;
   min-width: 0;
   min-height: 0;
   padding: 4px 4px 8px;
@@ -605,25 +605,13 @@ body.joined-transparent .main-widget .chat-button {
   width: min(100%, 320px);
   max-width: 320px;
 }
-.peer-card {
-  border-color: rgb(255 64 64 / 90%);
-}
-.peer-card .peer-caption,
-.peer-card .character,
-.peer-card .peer-avatar,
-.peer-card .fallback-avatar,
-.peer-card .peer-chirp,
-.peer-card .status-thinking-bubble,
-.peer-card .typing-indicator {
-  outline: 1px solid rgb(255 64 64 / 90%);
-  outline-offset: 0;
-}
 .peer-empty {
   gap: 8px;
   flex-basis: 100%;
 }
 .peer-card .character {
   position: relative;
+  flex: 0 0 auto;
   width: clamp(84px, 78%, 300px);
   max-width: calc(100% - 12px);
   height: auto;
