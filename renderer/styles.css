@@ -570,29 +570,27 @@ body.joined-transparent .main-widget .chat-button {
   width: 100%;
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 360px));
-  grid-auto-rows: auto;
-  grid-auto-flow: row dense;
+  display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-content: center;
-  justify-items: center;
-  align-items: center;
-  row-gap: 4px;
-  column-gap: 4px;
-  margin: 0;
+  align-items: stretch;
+  row-gap: 1px;
+  column-gap: 1px;
   padding: 2px 0 0;
 }
 .peer-card,
 .peer-empty {
   display: flex;
+  flex: 0 1 260px;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   height: auto;
+  align-self: stretch;
   min-width: 0;
   min-height: 0;
-  padding: 4px 8px 8px;
+  padding: 4px 4px 8px;
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
@@ -600,41 +598,56 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 10px;
 }
 .peer-card {
-  gap: 8px;
-  min-height: clamp(170px, 44vh, 340px);
-  width: min(100%, 320px);
-  max-width: 320px;
+  gap: 6px;
+  min-height: clamp(140px, 34vh, 250px);
+  width: min(100%, 260px);
+  max-width: 260px;
+}
+.peer-card {
+  border-color: rgb(255 64 64 / 90%);
+}
+.peer-card .peer-caption,
+.peer-card .character,
+.peer-card .peer-avatar,
+.peer-card .fallback-avatar,
+.peer-card .peer-chirp,
+.peer-card .status-thinking-bubble,
+.peer-card .typing-indicator {
+  outline: 1px solid rgb(255 64 64 / 90%);
+  outline-offset: 0;
 }
 .peer-empty {
   gap: 8px;
+  flex-basis: 100%;
 }
 .peer-card .character {
   position: relative;
-  width: clamp(96px, 78%, 360px);
-  max-width: calc(100% - 8px);
+  width: clamp(84px, 72%, 260px);
+  max-width: calc(100% - 12px);
   height: auto;
   max-height: calc(100% - 22px);
   aspect-ratio: 1 / 1;
 }
 .peer-card .character:not(.has-avatar) {
-  width: clamp(88px, 66%, 300px);
+  width: clamp(78px, 58%, 190px);
 }
 @media (max-width: 430px), (max-aspect-ratio: 4 / 5) {
   .peer-strip {
-    grid-template-columns: minmax(0, 1fr);
     justify-content: center;
   }
 }
 
 @media (min-width: 431px) and (max-width: 640px) and (min-aspect-ratio: 13 / 10) {
-  .peer-strip {
-    grid-template-columns: repeat(2, minmax(116px, 280px));
+  .peer-card {
+    width: min(100%, 240px);
+    max-width: 240px;
   }
 }
 
 @media (min-width: 641px), (min-aspect-ratio: 6 / 5) {
-  .peer-strip {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 360px));
+  .peer-card {
+    width: min(100%, 260px);
+    max-width: 260px;
   }
 }
 .peer-avatar,
@@ -658,7 +671,7 @@ body.joined-transparent .main-widget .chat-button {
 .fallback-avatar svg {
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
 }
 .fallback-avatar circle,
 .fallback-avatar path {
@@ -711,10 +724,10 @@ body.joined-transparent .main-widget .chat-button {
   box-shadow: 0 4px 10px rgb(0 0 0 / 18%);
 }
 .avatar-editor .status-badge {
-  right: 34px;
-}
-.avatar-delete-button {
-  position: absolute;
+  gap: 6px;
+  min-height: clamp(140px, 34vh, 250px);
+  width: min(100%, 260px);
+  max-width: 260px;
   top: 6px;
   right: 6px;
   z-index: 5;
@@ -722,14 +735,14 @@ body.joined-transparent .main-widget .chat-button {
   height: 22px;
   min-width: 22px;
   padding: 0;
-  border-radius: 999px;
-  color: #fff;
+  width: clamp(84px, 72%, 260px);
+  max-width: calc(100% - 12px);
   background: rgb(12 16 22 / 72%);
   border: 1px solid rgb(255 255 255 / 24%);
   line-height: 1;
 }
 .avatar-delete-button:hover {
-  background: rgb(23 31 43 / 82%);
+  width: clamp(78px, 58%, 190px);
 }
 .avatar-overlay {
   position: absolute;
@@ -1003,15 +1016,15 @@ body.joined-transparent .main-widget .chat-button {
   }
 
   .peer-strip {
-    row-gap: 6px;
-    column-gap: 4px;
+    width: min(100%, 240px);
+    max-width: 240px;
     padding-top: 0;
   }
 
   .peer-card,
   .peer-empty {
-    padding: 2px 4px 4px;
-    border-radius: 10px;
+    width: min(100%, 260px);
+    max-width: 260px;
   }
 
   .peer-card {
