@@ -571,12 +571,14 @@ body.joined-transparent .main-widget .chat-button {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(116px, 360px));
+  grid-auto-rows: auto;
   grid-auto-flow: row dense;
-  align-content: stretch;
-  align-items: stretch;
-  row-gap: 10px;
+  justify-content: center;
+  align-content: center;
+  justify-items: center;
+  align-items: center;
+  row-gap: 4px;
   column-gap: 4px;
   margin: 0;
   padding: 2px 0 0;
@@ -586,11 +588,11 @@ body.joined-transparent .main-widget .chat-button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  height: 100%;
+  justify-content: flex-start;
+  height: auto;
   min-width: 0;
   min-height: 0;
-  padding: 8px;
+  padding: 4px 8px 8px;
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
@@ -598,37 +600,41 @@ body.joined-transparent .main-widget .chat-button {
   font-size: 10px;
 }
 .peer-card {
-  gap: 18px;
+  gap: 8px;
+  min-height: clamp(170px, 44vh, 340px);
+  width: min(100%, 320px);
+  max-width: 320px;
 }
 .peer-empty {
   gap: 8px;
 }
 .peer-card .character {
   position: relative;
-  width: min(74%, 210px, calc(100% - 16px));
+  width: clamp(96px, 78%, 360px);
+  max-width: calc(100% - 8px);
   height: auto;
   max-height: calc(100% - 22px);
   aspect-ratio: 1 / 1;
 }
+.peer-card .character:not(.has-avatar) {
+  width: clamp(88px, 66%, 300px);
+}
 @media (max-width: 430px), (max-aspect-ratio: 4 / 5) {
   .peer-strip {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .peer-card .character {
-    width: min(62%, 180px, calc(100% - 20px));
+    justify-content: center;
   }
 }
 
 @media (min-width: 431px) and (max-width: 640px) and (min-aspect-ratio: 13 / 10) {
   .peer-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(116px, 280px));
   }
 }
 
 @media (min-width: 641px), (min-aspect-ratio: 6 / 5) {
   .peer-strip {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(132px, 360px));
   }
 }
 .peer-avatar,
@@ -639,6 +645,10 @@ body.joined-transparent .main-widget .chat-button {
   border-radius: 0;
   object-fit: cover;
   background: transparent;
+}
+.peer-card .peer-avatar,
+.peer-card .avatar-preview {
+  object-fit: cover;
 }
 .fallback-avatar {
   display: grid;
@@ -928,7 +938,7 @@ body.joined-transparent .main-widget .chat-button {
 .peer-chirp {
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 10px);
+  bottom: calc(100% - 22px);
   transform: translateX(-50%);
   z-index: 12;
   max-width: min(160%, 180px);
@@ -948,7 +958,7 @@ body.joined-transparent .main-widget .chat-button {
 }
 .peer-card .status-thinking-bubble {
   position: absolute;
-  top: -14px;
+  top: -4px;
   right: -2px;
   z-index: 7;
   width: 50px;
@@ -1000,22 +1010,19 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-card,
   .peer-empty {
-    padding: 4px;
+    padding: 2px 4px 4px;
     border-radius: 10px;
   }
 
   .peer-card {
-    gap: 10px;
+    gap: 6px;
+    min-height: clamp(130px, 42vh, 220px);
+    width: min(100%, 240px);
+    max-width: 240px;
   }
 
   .peer-empty {
     gap: 4px;
-  }
-
-  .peer-card .character {
-    position: relative;
-    width: min(66%, 128px, calc(100% - 8px));
-    max-height: calc(100% - 18px);
   }
 
   .peer-caption {
@@ -1036,7 +1043,7 @@ body.joined-transparent .main-widget .chat-button {
     font-size: 12px;
     padding: 3px 6px;
     max-width: min(170%, 150px);
-    bottom: calc(100% - 8px);
+    bottom: calc(100% - 1px);
   }
 
   .peer-idle-since {
