@@ -404,6 +404,7 @@ button[data-avatar-delete] {
   display: grid;
   width: 56px;
   height: 56px;
+  margin: 0 auto;
   place-items: center;
   border: 1px solid var(--accent);
   border-radius: 50%;
@@ -1093,53 +1094,52 @@ body.joined-transparent .main-widget .chat-button {
     bottom: calc(100% - 1px);
   }
 
+  @media (max-height: 360px) {
+    .presence-body {
+      padding: 4px 6px;
+    }
 
-@media (max-height: 360px) {
-  .presence-body {
-    padding: 4px 6px;
-  }
+    .peer-strip {
+      max-width: none;
+      padding-top: 0;
+    }
 
-  .peer-strip {
-    max-width: none;
-    padding-top: 0;
-  }
+    .peer-card,
+    .peer-empty {
+      flex-basis: 180px;
+    }
 
-  .peer-card,
-  .peer-empty {
-    flex-basis: 180px;
-  }
+    .peer-card {
+      gap: 6px;
+      min-height: clamp(72px, 16vh, 112px);
+      max-width: 100%;
+    }
 
-  .peer-card {
-    gap: 6px;
-    min-height: clamp(72px, 16vh, 112px);
-    max-width: 100%;
-  }
+    .peer-empty {
+      gap: 4px;
+    }
 
-  .peer-empty {
-    gap: 4px;
-  }
+    .peer-caption {
+      gap: 4px;
+      padding: 2px 7px;
+    }
 
-  .peer-caption {
-    gap: 4px;
-    padding: 2px 7px;
-  }
+    .peer-caption .status-dot {
+      width: 8px;
+      height: 8px;
+    }
 
-  .peer-caption .status-dot {
-    width: 8px;
-    height: 8px;
-  }
+    .peer-caption-text {
+      font-size: 12px;
+    }
 
-  .peer-caption-text {
-    font-size: 12px;
+    .peer-chirp {
+      font-size: 12px;
+      padding: 3px 6px;
+      max-width: min(170%, 150px);
+      bottom: calc(100% - 1px);
+    }
   }
-
-  .peer-chirp {
-    font-size: 12px;
-    padding: 3px 6px;
-    max-width: min(170%, 150px);
-    bottom: calc(100% - 1px);
-  }
-}
   .peer-idle-since {
     font-size: 9px;
   }
@@ -1390,6 +1390,24 @@ body.joined-transparent .main-widget .chat-button {
   color: #93a39b;
   font-size: 11px;
   font-style: italic;
+}
+.sound-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sound-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.sound-toggle {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #86dcb5;
 }
 .checkmark-button {
   display: grid;

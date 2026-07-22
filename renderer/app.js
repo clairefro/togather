@@ -107,6 +107,8 @@ const AVATAR_KEY = "togather.avatar-data-url.v1";
 const STATUS_EMOJI_KEY = "togather.status-emoji.v1";
 const STATUS_TEXT_KEY = "togather.status-text.v1";
 const ZOOM_LEVEL_KEY = "togather.zoom-level.v2";
+const SOUND_ENABLED_KEY = "togather.sound-enabled.v1";
+const SOUND_ALERT_SRC = "assets/sounds/mixkit-message-pop-alert.mp3";
 const MIN_ZOOM = 1.0;
 const MAX_ZOOM = 1.6;
 const ZOOM_STEP = 0.1;
@@ -162,6 +164,7 @@ const state = {
   clickThrough: false,
   menuOpen: false,
   chatOpen: false,
+  soundEnabled: false,
   zoomLevel: 1,
   typingPeers: new Map(),
   peerColorIndexes: new Map(),
@@ -180,6 +183,8 @@ const state = {
   appVersion: "",
   sendQueue: Promise.resolve(),
 };
+let soundAlertAudio = null;
+const activeSoundPlayers = new Set();
 
 function ioPayloadToString(payload) {
   if (typeof payload === "string") return payload;
@@ -1011,6 +1016,10 @@ function zoomMenuMarkup() {
   return `<div class="menu-section zoom-menu-section"><div class="zoom-menu-row"><label class="menu-label">Zoom</label><div class="zoom-menu-buttons"><button type="button" class="icon-button zoom-step-button" data-action="zoom-out" aria-label="Zoom out" title="Zoom out">−</button><button type="button" class="icon-button zoom-step-button" data-action="zoom-in" aria-label="Zoom in" title="Zoom in">+</button></div></div><p class="zoom-shortcut-hint">cmd/ctrl +/-</p></div>`;
 }
 
+function soundMenuMarkup() {
+  return `<div class="menu-section sound-menu-section"><div class="sound-toggle-row"><label class="menu-label" for="sound-enabled-toggle">Sound alerts</label><input id="sound-enabled-toggle" class="sound-toggle" type="checkbox" data-action="toggle-sounds" aria-label="Toggle sound alerts" ${state.soundEnabled ? "checked" : ""}></div><p class="zoom-shortcut-hint">Play on join and incoming messages</p></div>`;
+}
+
 function roomInfoMenuMarkup(peerCount) {
   return `<div class="menu-section"><label class="menu-label" for="room-code-input">Room</label><div class="room-code-row"><input id="room-code-input" class="room-code-field" value="${escapeAttribute(currentRoomCode())}" readonly aria-label="Room code"><button type="button" class="icon-button copy-room-button" data-action="copy-room" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><p class="menu-meta">${peerCount} ${peerCount === 1 ? "peer" : "peers"} present</p></div>`;
 }
@@ -1032,6 +1041,71 @@ function statusPickerLayerMarkup() {
 
 function menuDividerMarkup() {
   return '<div class="menu-divider" role="separator" aria-hidden="true"></div>';
+}
+
+function readSoundEnabled() {
+  try {
+    return localStorage.getItem(SOUND_ENABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveSoundEnabled(enabled) {
+  try {
+    localStorage.setItem(SOUND_ENABLED_KEY, enabled ? "1" : "0");
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+function getSoundAlertAudio() {
+  if (!soundAlertAudio) {
+    soundAlertAudio = new Audio(SOUND_ALERT_SRC);
+    soundAlertAudio.preload = "auto";
+  }
+  return soundAlertAudio;
+}
+
+function playAlertSound() {
+  if (!state.soundEnabled) return;
+
+  try {
+    const sourceAudio = getSoundAlertAudio();
+    const audio = sourceAudio.cloneNode(true);
+    activeSoundPlayers.add(audio);
+
+    const cleanup = () => {
+      activeSoundPlayers.delete(audio);
+      audio.removeEventListener("ended", cleanup);
+      audio.removeEventListener("error", cleanup);
+    };
+
+    audio.addEventListener("ended", cleanup);
+    audio.addEventListener("error", cleanup);
+
+    const playing = audio.play();
+    if (playing && typeof playing.catch === "function") {
+      playing.catch(() => {
+        cleanup();
+      });
+    }
+  } catch {
+    // Ignore playback failures.
+  }
+}
+
+function bindSoundMenuControls() {
+  const toggle = app.querySelector('[data-action="toggle-sounds"]');
+  if (!(toggle instanceof HTMLInputElement)) return;
+
+  toggle.addEventListener("change", () => {
+    state.soundEnabled = Boolean(toggle.checked);
+    saveSoundEnabled(state.soundEnabled);
+    if (state.soundEnabled) {
+      getSoundAlertAudio();
+    }
+  });
 }
 
 function renderOnboarding(mode = "choose") {
@@ -1078,7 +1152,7 @@ function renderOnboarding(mode = "choose") {
     CONTROL_HOTKEYS.minimize,
   );
   const onboardingExitTitle = controlButtonTitle("Exit", CONTROL_HOTKEYS.exit);
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu" title="${onboardingMenuTitle}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize" title="${onboardingMinimizeTitle}">−</button><button class="icon-button" data-action="exit" aria-label="Exit" title="${onboardingExitTitle}">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Ambient-cowork directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu" title="Close (Esc)">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu" title="${onboardingMenuTitle}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize" title="${onboardingMinimizeTitle}">−</button><button class="icon-button" data-action="exit" aria-label="Exit" title="${onboardingExitTitle}">×</button></header><div class="onboarding-body"><div class="onboarding-content"><h1>Let's get togather</h1><p class="muted">Ambient-cowork directly with peers</p><p class="error" data-error hidden></p>${mode === "choose" ? chooseContent : joinContent}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu" title="Close (Esc)">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}${soundMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".onboarding-body"),
@@ -1191,6 +1265,7 @@ function renderOnboarding(mode = "choose") {
 
   bindAvatarControls(app);
   bindZoomMenuControls();
+  bindSoundMenuControls();
 
   bindNameMenu();
   bindStatusMenu();
@@ -1202,12 +1277,28 @@ function renderOnboarding(mode = "choose") {
 function renderInvite() {
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
+  const inviteMenuTitle = controlButtonTitle("Menu", CONTROL_HOTKEYS.menu);
   const inviteMinimizeTitle = controlButtonTitle(
     "Minimize",
     CONTROL_HOTKEYS.minimize,
   );
   const inviteExitTitle = controlButtonTitle("Exit", CONTROL_HOTKEYS.exit);
-  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="minimize" aria-label="Minimize" title="${inviteMinimizeTitle}">−</button><button class="icon-button" data-action="exit" aria-label="Exit" title="${inviteExitTitle}">×</button></header><div class="onboarding-body invite-screen"><div class="onboarding-content"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for peers...</p><p class="error" data-error hidden></p></div></div><button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  const menuNameValue =
+    state.menuOpen && typeof state.displayNameDraft === "string"
+      ? state.displayNameDraft
+      : defaultDisplayName();
+  const menuStatusEmojiValue =
+    state.menuOpen && typeof state.statusEmojiDraft === "string"
+      ? state.statusEmojiDraft
+      : state.statusEmoji;
+  const roomSection = roomInfoMenuMarkup(connectedParticipantCount());
+  app.innerHTML = `<section class="widget onboarding"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button" data-action="menu" aria-label="Menu" title="${inviteMenuTitle}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="Minimize" title="${inviteMinimizeTitle}">−</button><button class="icon-button" data-action="exit" aria-label="Exit" title="${inviteExitTitle}">×</button></header><div class="onboarding-body invite-screen"><div class="onboarding-content"><div class="pulse-ring"><span>♡</span></div><h1>Share this code</h1><p class="muted">Send it through a channel you already trust.</p><div class="invite-code-inline"><input class="invite-code-input" value="${escapeAttribute(state.inviteCode)}" readonly aria-label="Room code"><button type="button" class="icon-button invite-code-copy" data-action="copy-invite" aria-label="Copy room code" title="Copy room code">${copyIconSvg()}</button></div><button class="primary" data-action="copy-invite-primary">Copy room code</button><button class="quiet" data-action="reset">Back</button><p class="waiting"><i></i> Waiting for peers...</p><p class="error" data-error hidden></p></div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu" title="Close (Esc)">×</button></div>${roomSection}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}${soundMenuMarkup()}</aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  applyMenuVersionLabel();
+  mountAvatarEditor({
+    container: app.querySelector(".menu-popover"),
+    avatarName: state.displayName || "you",
+    beforeSelector: ".name-form",
+  });
 
   const runInviteCopy = async () => {
     try {
@@ -1259,6 +1350,12 @@ function renderInvite() {
     .querySelector('[data-action="minimize"]')
     ?.addEventListener("click", minimizeApp);
   app.querySelector('[data-action="exit"]')?.addEventListener("click", exitApp);
+
+  bindAvatarControls(app);
+  bindZoomMenuControls();
+  bindSoundMenuControls();
+  bindNameMenu();
+  bindStatusMenu();
 
   bindDragHandle();
   bindResizeHandle();
@@ -2040,7 +2137,7 @@ function renderWidget() {
     : CONTROL_HOTKEYS.exit;
   const exitButtonTitle = controlButtonTitle(exitButtonLabel, exitButtonHotkey);
 
-  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonTitle}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonTitle}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonTitle}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonTitle}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu" title="Close (Esc)">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat" title="Close (Esc)">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
+  app.innerHTML = `<section class="widget main-widget ${aggregate}"><header class="drag-bar"><div class="drag-region" data-tauri-drag-region><span class="drag-dots" aria-hidden="true">⠿</span></div><button class="icon-button chat-bubble ${state.unreadChatCount ? "has-unread" : ""}" data-action="chat" aria-label="${chatButtonLabel}" title="${chatButtonTitle}"><svg class="chat-icon" viewBox="0 0 512 512" aria-hidden="true" focusable="false"><path fill="currentColor" d="M437.333 32H74.667C33.493 32 0 65.493 0 106.667V320c0 41.173 33.493 74.667 74.667 74.667h25.387L65.11 464.555c-2.091 4.203-1.195 9.301 2.219 12.523C69.355 478.997 72 480 74.667 480c1.813 0 3.627-.448 5.291-1.408l146.88-83.925h210.496C478.507 394.667 512 361.173 512 320V106.667C512 65.493 478.507 32 437.333 32zM490.645 319.979c0 29.397-23.936 53.333-53.333 53.333H223.979c-1.856 0-3.669.491-5.291 1.408L99.947 442.581l26.923-53.824c1.664-3.285 1.472-7.232-.469-10.368s-5.376-5.056-9.067-5.056H74.667c-29.397 0-53.333-23.936-53.333-53.333V106.667c0-29.397 23.936-53.333 53.333-53.333v-.021h362.645c29.397 0 53.333 23.936 53.333 53.333V319.979z"/></svg>${state.unreadChatCount ? `<span class="chat-badge">${state.unreadChatCount}</span>` : ""}</button><button class="icon-button" data-action="menu" aria-label="${menuButtonLabel}" title="${menuButtonTitle}">${moreMenuIconSvg()}</button><button class="icon-button" data-action="minimize" aria-label="${minimizeButtonLabel}" title="${minimizeButtonTitle}">−</button><button class="icon-button" data-action="exit" aria-label="${exitButtonLabel}" title="${exitButtonTitle}">${exitButtonText}</button></header><div class="presence-body"><div class="peer-strip">${peerItems || '<p class="peer-empty"><span class="peer-empty-badge">Crickets...</span></p>'}</div></div><aside class="menu-popover" ${state.menuOpen ? "" : "hidden"}><div class="menu-header"><span class="menu-version" data-app-version>${escapeHtml(menuVersionLabel())}</span><button type="button" class="icon-button menu-close" data-action="cancel-name" aria-label="Close menu" title="Close (Esc)">×</button></div>${roomInfoMenuMarkup(peerCount)}${nameMenuMarkup(menuNameValue)}${statusMenuMarkup(menuStatusEmojiValue)}${menuDividerMarkup()}${zoomMenuMarkup()}${soundMenuMarkup()}</aside><aside class="chat-popover" ${state.chatOpen ? "" : "hidden"}><div class="chat-header"><span>Chat</span><button class="icon-button" data-action="close-chat" title="Close (Esc)">×</button></div><div class="message-log"></div><form class="chat-form"><input aria-label="Message" maxlength="2000" placeholder="Say something…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"><button aria-label="Send" type="submit">↑</button></form></aside>${statusPickerLayerMarkup()}<button class="resize-grip" data-action="resize" aria-label="Resize window"></button></section>`;
   applyMenuVersionLabel();
   mountAvatarEditor({
     container: app.querySelector(".menu-popover"),
@@ -2068,6 +2165,7 @@ function renderWidget() {
   bindStatusMenu();
   bindAvatarControls(app);
   bindZoomMenuControls();
+  bindSoundMenuControls();
 
   if (state.chatOpen) {
     renderMessages();
@@ -2603,6 +2701,7 @@ bridge.onEvent((event) => {
       if (event.peer !== state.selfPeerId) state.connectedPeers.add(event.peer);
       if (event.peer !== state.selfPeerId) {
         pushPeerNotice("joined", event.peer);
+        playAlertSound();
       }
 
       // Any successful peer-status connect signal means we are in-room.
@@ -2659,6 +2758,9 @@ bridge.onEvent((event) => {
     }
 
     pushUnreadChatEntry(event, true);
+    if (typeof event.peer === "string" && event.peer !== state.selfPeerId) {
+      playAlertSound();
+    }
     if (app.querySelector(".main-widget")) renderWidget();
     renderMessages();
   } else if (event.type === "typing") {
@@ -2770,6 +2872,7 @@ state.statusEmoji = readStatusEmoji();
 state.statusText = readStatusText();
 state.statusEmojiDraft = state.statusEmoji;
 state.statusTextDraft = state.statusText;
+state.soundEnabled = readSoundEnabled();
 renderOnboarding();
 document.body.style.background = "transparent";
 void loadAppVersion();

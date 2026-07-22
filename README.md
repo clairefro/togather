@@ -123,3 +123,7 @@ This will:
 - [ ] display name validation (alphanumeric - \_)
 
 - [ ] custom avatar base64
+
+## Attributions
+
+Notification sound from https://mixkit.co/
