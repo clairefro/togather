@@ -679,7 +679,7 @@ body.joined-transparent .main-widget .chat-button {
   }
 
   .peer-chirp {
-    bottom: calc(100% - 14px);
+    bottom: calc(100% - 7px);
     font-size: 12px;
     padding: 3px 6px;
   }
@@ -986,7 +986,7 @@ body.joined-transparent .main-widget .chat-button {
 .peer-chirp {
   position: absolute;
   left: 50%;
-  bottom: calc(100% - 22px);
+  bottom: calc(100% - 27px);
   transform: translateX(-50%);
   z-index: 12;
   max-width: min(160%, 180px);
@@ -1091,7 +1091,7 @@ body.joined-transparent .main-widget .chat-button {
     font-size: 12px;
     padding: 3px 6px;
     max-width: min(170%, 150px);
-    bottom: calc(100% - 1px);
+    bottom: calc(100% - 5px);
   }
 
   @media (max-height: 360px) {
@@ -1137,7 +1137,7 @@ body.joined-transparent .main-widget .chat-button {
       font-size: 12px;
       padding: 3px 6px;
       max-width: min(170%, 150px);
-      bottom: calc(100% - 1px);
+      bottom: calc(100% - 5px);
     }
   }
   .peer-idle-since {
@@ -1217,7 +1217,8 @@ body.joined-transparent .main-widget .chat-button {
   border: 1px solid var(--control-outline);
   border-radius: 16px;
   overflow-y: auto;
-  background: var(--surface-panel);
+  background: rgb(39 44 51 / 95%);
+  backdrop-filter: blur(10px);
   box-shadow: 0 12px 28px #071216aa;
 }
 .menu-popover {
@@ -1232,7 +1233,8 @@ body.joined-transparent .main-widget .chat-button {
   border: 1px solid var(--control-outline);
   border-radius: 12px;
   overflow-y: auto;
-  background: var(--surface-panel);
+  background: rgb(39 44 51 / 95%);
+  backdrop-filter: blur(10px);
   box-shadow: 0 8px 20px #071216aa;
 }
 .menu-popover > :not([hidden]) + :not([hidden]) {
