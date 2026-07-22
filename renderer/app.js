@@ -569,7 +569,7 @@ function statusBadgeMarkup(
   const text = normalizeStatusText(statusText);
   const title = text ? ` title="${escapeAttribute(text)}"` : "";
   const aria = text
-    ? ` aria-label="Status: ${escapeAttribute(text)}"`
+    ? ` aria-label="Mood: ${escapeAttribute(text)}"`
     : ' aria-hidden="true"';
 
   if (className === "status-thinking-bubble") {
@@ -1032,11 +1032,11 @@ function statusMenuMarkup(menuStatusEmojiValue) {
   const triggerLabel = menuStatusEmojiValue
     ? `${menuStatusEmojiValue} ▾`
     : "Pick ▾";
-  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label">Status</label><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><button type="button" class="status-emoji-trigger" data-action="toggle-status-picker" aria-expanded="${state.statusEmojiPickerOpen ? "true" : "false"}" aria-label="Open emoji picker">${escapeHtml(triggerLabel)}</button><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear status" title="Clear status">×</button></div></section>`;
+  return `<section class="status-form menu-section"><div class="status-form-header"><label class="menu-label">Mood</label><input id="status-emoji-input" type="hidden" value="${escapeAttribute(menuStatusEmojiValue)}"><button type="button" class="status-emoji-trigger" data-action="toggle-status-picker" aria-expanded="${state.statusEmojiPickerOpen ? "true" : "false"}" aria-label="Open emoji picker">${escapeHtml(triggerLabel)}</button><button type="button" class="icon-button status-clear-button" data-action="clear-status" aria-label="Clear mood" title="Clear mood">×</button></div></section>`;
 }
 
 function statusPickerLayerMarkup() {
-  return '<div class="status-picker-layer" data-status-picker-layer hidden><button type="button" class="status-picker-scrim" data-action="close-status-picker" aria-label="Close emoji picker" title="Close emoji picker (Esc)"></button><div class="status-picker-panel" role="dialog" aria-modal="true" aria-label="Choose a status emoji"><div class="status-picker-header"><span>Status emoji</span><button type="button" class="icon-button status-picker-close" data-action="close-status-picker" aria-label="Close emoji picker" title="Close emoji picker (Esc)">×</button></div><emoji-picker class="status-emoji-picker-widget" data-status-emoji-picker data-source="assets/vendor/emoji-picker-element-data/en/data.json"></emoji-picker></div></div>';
+  return '<div class="status-picker-layer" data-status-picker-layer hidden><button type="button" class="status-picker-scrim" data-action="close-status-picker" aria-label="Close emoji picker" title="Close emoji picker (Esc)"></button><div class="status-picker-panel" role="dialog" aria-modal="true" aria-label="Choose a mood emoji"><div class="status-picker-header"><span>Mood emoji</span><button type="button" class="icon-button status-picker-close" data-action="close-status-picker" aria-label="Close emoji picker" title="Close emoji picker (Esc)">×</button></div><emoji-picker class="status-emoji-picker-widget" data-status-emoji-picker data-source="assets/vendor/emoji-picker-element-data/en/data.json"></emoji-picker></div></div>';
 }
 
 function menuDividerMarkup() {
