@@ -573,11 +573,12 @@ body.joined-transparent .main-widget .chat-button {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  align-content: center;
+  align-content: flex-start;
   align-items: stretch;
   row-gap: 1px;
   column-gap: 1px;
   padding: 2px 0 0;
+  overflow-y: auto;
 }
 .peer-card,
 .peer-empty {
@@ -599,7 +600,7 @@ body.joined-transparent .main-widget .chat-button {
 }
 .peer-card {
   gap: 6px;
-  min-height: clamp(140px, 34vh, 250px);
+  min-height: clamp(120px, 28vh, 220px);
   width: min(100%, 260px);
   max-width: 260px;
 }
@@ -1029,7 +1030,7 @@ body.joined-transparent .main-widget .chat-button {
 
   .peer-card {
     gap: 6px;
-    min-height: clamp(130px, 42vh, 220px);
+    min-height: clamp(110px, 30vh, 180px);
     width: min(100%, 240px);
     max-width: 240px;
   }
