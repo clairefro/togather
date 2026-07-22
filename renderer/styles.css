@@ -552,7 +552,7 @@ body.joined-transparent .main-widget .chat-button {
   flex-direction: column;
   justify-content: stretch;
   align-items: stretch;
-  padding: 8px 12px;
+  padding: 10px 12px 12px;
 }
 .main-widget .character {
   width: clamp(82px, 42vw, 126px);
@@ -576,9 +576,10 @@ body.joined-transparent .main-widget .chat-button {
   align-content: center;
   align-items: stretch;
   align-self: stretch;
+  margin-top: 6px;
   row-gap: 1px;
   column-gap: 1px;
-  padding: 2px 0 0;
+  padding: 8px 0 0;
   overflow-y: auto;
 }
 .peer-card,
