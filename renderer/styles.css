@@ -65,6 +65,11 @@ button {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
+button[data-action],
+button[data-avatar-upload],
+button[data-avatar-delete] {
+  cursor: pointer;
+}
 .widget {
   position: relative;
   display: flex;
@@ -312,6 +317,7 @@ button {
   height: 20px;
   margin: 0;
   padding: 0;
+  border: 1px solid var(--control-outline);
   border-radius: 50%;
   color: #d8ece4;
   background: var(--glass-14);
@@ -320,6 +326,7 @@ button {
   transform: translateY(-50%);
 }
 .clear-code:hover {
+  border-color: var(--control-outline-strong);
   background: var(--glass-24);
 }
 .use-prev-code-inline {
@@ -331,6 +338,7 @@ button {
   height: 20px;
   margin: 0;
   padding: 0;
+  border: 1px solid var(--control-outline);
   border-radius: 50%;
   color: #d8ece4;
   background: var(--glass-14);
@@ -339,6 +347,7 @@ button {
   transform: translateY(-50%);
 }
 .use-prev-code-inline:hover {
+  border-color: var(--control-outline-strong);
   background: var(--glass-24);
 }
 .error {
@@ -1309,12 +1318,17 @@ body.joined-transparent .main-widget .chat-button {
   width: 26px;
   height: 26px;
   font-size: 12px;
+  cursor: pointer;
+}
+.invite-code-copy {
+  cursor: pointer;
 }
 .copy-room-button .copy-icon,
 .invite-code-copy .copy-icon {
   width: 14px;
   height: 14px;
   display: block;
+  pointer-events: none;
   filter: brightness(0) saturate(100%) invert(93%) sepia(8%) saturate(143%)
     hue-rotate(167deg) brightness(100%) contrast(93%);
 }
