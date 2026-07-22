@@ -1,6 +1,6 @@
 {
   "name": "togather",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "author": "Claire Froelich",
   "description": "Peer-to-peer telepresence widget",
   "scripts": {
