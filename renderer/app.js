@@ -153,6 +153,7 @@ const state = {
   statusEmojiDraft: "",
   statusTextDraft: "",
   statusEmojiPickerOpen: false,
+  statusEmojiPickerGroupId: null,
   lastActivityAt: Date.now(),
   lastPresenceSentAt: 0,
   inviteCode: "",
@@ -1712,6 +1713,32 @@ function syncStatusEditorControls() {
   clearButton.setAttribute("aria-disabled", hasStatus ? "false" : "true");
 }
 
+function selectedStatusPickerGroupId(pickerWidget) {
+  const selectedNavButton = pickerWidget?.shadowRoot?.querySelector(
+    '.nav-button[aria-selected="true"]',
+  );
+  const groupIdRaw = selectedNavButton?.getAttribute("data-group-id") ?? "";
+  const groupId = Number.parseInt(groupIdRaw, 10);
+  return Number.isInteger(groupId) ? groupId : null;
+}
+
+function restoreStatusPickerGroup(pickerWidget) {
+  if (!state.statusEmojiPickerOpen) return;
+  if (!Number.isInteger(state.statusEmojiPickerGroupId)) return;
+
+  const applySavedGroup = () => {
+    const button = pickerWidget?.shadowRoot?.querySelector(
+      `.nav-button[data-group-id="${state.statusEmojiPickerGroupId}"]`,
+    );
+    if (!button) return;
+    if (button.getAttribute("aria-selected") === "true") return;
+    button.click();
+  };
+
+  applySavedGroup();
+  requestAnimationFrame(applySavedGroup);
+}
+
 function bindStatusMenu() {
   const emojiInput = app.querySelector("#status-emoji-input");
   const clearButton = app.querySelector('[data-action="clear-status"]');
@@ -1769,8 +1796,28 @@ function bindStatusMenu() {
         "aria-expanded",
         state.statusEmojiPickerOpen ? "true" : "false",
       );
+
+      if (state.statusEmojiPickerOpen) {
+        restoreStatusPickerGroup(pickerWidget);
+      }
     });
   }
+
+  pickerWidget?.shadowRoot?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const navButton = target.closest(".nav-button[data-group-id]");
+    if (!navButton) return;
+
+    const groupIdRaw = navButton.getAttribute("data-group-id") ?? "";
+    const groupId = Number.parseInt(groupIdRaw, 10);
+    if (Number.isInteger(groupId)) {
+      state.statusEmojiPickerGroupId = groupId;
+    }
+  });
+
+  restoreStatusPickerGroup(pickerWidget);
 
   for (const button of closePickerButtons) {
     button.addEventListener("click", () => {
@@ -2086,6 +2133,15 @@ function renderWidget() {
   const currentStatusEmojiInput = app.querySelector("#status-emoji-input");
   if (state.menuOpen && currentStatusEmojiInput) {
     state.statusEmojiDraft = currentStatusEmojiInput.value;
+  }
+  const currentStatusPickerWidget = app.querySelector(
+    "[data-status-emoji-picker]",
+  );
+  if (state.statusEmojiPickerOpen && currentStatusPickerWidget) {
+    const groupId = selectedStatusPickerGroupId(currentStatusPickerWidget);
+    if (Number.isInteger(groupId)) {
+      state.statusEmojiPickerGroupId = groupId;
+    }
   }
   const menuStatusEmojiValue =
     state.menuOpen && typeof state.statusEmojiDraft === "string"
