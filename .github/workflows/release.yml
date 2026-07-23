@@ -35,13 +35,6 @@ jobs:
             linux_variant: modern
             bundles: deb,rpm
             args: ""
-          - id: linux-debian11-compatible
-            runner: ubuntu-20.04
-            os_label: linux-debian11-compatible
-            arch_label: x86_64
-            linux_variant: legacy
-            bundles: deb,rpm
-            args: ""
           - id: windows
             runner: windows-latest
             os_label: windows
@@ -126,14 +119,12 @@ jobs:
               *) echo "Skipping unsupported bundle type: $bundle"; continue ;;
             esac
 
-            mapfile -t matches < <(find src-tauri/target -type f -name "*.${ext}" -path "*/bundle/*" | sort)
-            if [[ ${#matches[@]} -eq 0 ]]; then
+            src="$(find src-tauri/target -type f -name "*.${ext}" -path "*/bundle/*" | sort | tail -n 1)"
+            if [[ -z "$src" ]]; then
               echo "No artifacts found for extension .${ext}" >&2
               exit 1
             fi
 
-            last_index=$((${#matches[@]} - 1))
-            src="${matches[$last_index]}"
             dest="dist/togather_${VERSION}_${{ matrix.os_label }}_${{ matrix.arch_label }}.${ext}"
             cp "$src" "$dest"
             echo "Prepared artifact: $dest"
@@ -146,8 +137,85 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  build-linux-legacy:
+    runs-on: ubuntu-22.04
+    container:
+      image: debian:11
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install Debian 11 build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            ca-certificates \
+            curl \
+            git \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libfuse2 \
+            libxdo-dev \
+            libssl-dev \
+            librsvg2-dev \
+            patchelf
+          apt-get install -y libayatana-appindicator3-dev || apt-get install -y libappindicator3-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install worker dependencies
+        run: npm ci --prefix workers
+
+      - name: Prepare Bare worker sidecar
+        run: node scripts/prepare-bare-sidecar.mjs
+
+      - name: Build Debian 11 compatible bundles
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: npm run tauri build -- --bundles deb,rpm
+
+      - name: Collect and rename Debian 11 compatible artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+
+          for ext in deb rpm; do
+            src="$(find src-tauri/target -type f -name "*.${ext}" -path "*/bundle/*" | sort | tail -n 1)"
+            if [[ -z "$src" ]]; then
+              echo "No artifacts found for extension .${ext}" >&2
+              exit 1
+            fi
+
+            dest="dist/togather_${VERSION}_linux-debian11-compatible_x86_64.${ext}"
+            cp "$src" "$dest"
+            echo "Prepared artifact: $dest"
+          done
+
+      - name: Upload Debian 11 compatible artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debian11-compatible
+          path: dist/*
+          if-no-files-found: error
+
   publish-release:
-    needs: build
+    needs:
+      - build
+      - build-linux-legacy
     runs-on: ubuntu-22.04
     steps:
       - name: Download all built artifacts
