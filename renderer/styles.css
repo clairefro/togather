@@ -740,6 +740,12 @@ body.joined-transparent .main-widget .chat-button {
   border-radius: 0;
   background: rgb(255 255 255 / 6%);
 }
+.avatar-delete-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+}
 .status-badge {
   position: absolute;
   top: 5px;
@@ -775,9 +781,6 @@ body.joined-transparent .main-widget .chat-button {
   background: rgb(12 16 22 / 72%);
   border: 1px solid rgb(255 255 255 / 24%);
   line-height: 1;
-}
-.avatar-delete-button:hover {
-  width: clamp(78px, 58%, 190px);
 }
 .avatar-overlay {
   position: absolute;
