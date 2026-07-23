@@ -1594,6 +1594,94 @@ body.joined-transparent .main-widget .chat-button {
   pointer-events: none;
   text-shadow: 0 0 4px rgb(10 8 20 / 55%);
 }
+.avatar-crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 225;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgb(3 5 7 / 60%);
+  backdrop-filter: blur(2px);
+}
+.avatar-crop-dialog {
+  width: min(360px, 100%);
+  border: 1px solid var(--control-outline);
+  border-radius: 12px;
+  padding: 10px;
+  color: var(--color-text);
+  background: linear-gradient(180deg, #252b33 0%, #1d232a 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    0 14px 30px rgb(6 10 15 / 56%);
+}
+.avatar-crop-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.avatar-crop-close {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  font-size: 14px;
+}
+.avatar-crop-hint {
+  margin: 6px 0 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+.avatar-crop-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 5 / 4;
+  display: block;
+  border: 1px solid var(--control-outline);
+  border-radius: 10px;
+  background:
+    linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 3%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 3%) 75%);
+  background-size: 14px 14px;
+  background-position:
+    0 0,
+    0 7px,
+    7px -7px,
+    -7px 0;
+  cursor: grab;
+}
+.avatar-crop-canvas:active {
+  cursor: grabbing;
+}
+.avatar-crop-controls {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.avatar-crop-zoom-label {
+  font-size: 11px;
+  color: #c7ddd4;
+}
+.avatar-crop-zoom {
+  width: 100%;
+}
+.avatar-crop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.avatar-crop-actions .primary,
+.avatar-crop-actions .quiet {
+  width: auto;
+  min-width: 72px;
+  margin: 0;
+}
 .confirm-backdrop {
   position: fixed;
   inset: 0;
