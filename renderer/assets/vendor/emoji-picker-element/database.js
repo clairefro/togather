@@ -122,7 +122,19 @@ function dbPromise (db, storeName, readOnlyOrReadWrite, cb) {
   return new Promise((resolve, reject) => {
     // Use relaxed durability because neither the emoji data nor the favorites/preferred skin tone
     // are really irreplaceable data. IndexedDB is just a cache in this case.
-    const txn = db.transaction(storeName, readOnlyOrReadWrite, { durability: 'relaxed' });
+    let txn;
+    try {
+      txn = db.transaction(storeName, readOnlyOrReadWrite, { durability: 'relaxed' });
+    } catch (err) {
+      // Older WebKit/IndexedDB implementations may reject the transaction options dictionary
+      // entirely, even though a normal 2-argument transaction works fine.
+      if (err && (err.name === 'TypeError' || err.name === 'NotSupportedError')) {
+        txn = db.transaction(storeName, readOnlyOrReadWrite);
+      } else {
+        reject(err);
+        return
+      }
+    }
     const store = typeof storeName === 'string'
       ? txn.objectStore(storeName)
       : storeName.map(name => txn.objectStore(name));

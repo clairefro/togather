@@ -7,12 +7,39 @@ function renderBootError(message) {
   root.innerHTML = `<div style="height:100%;display:flex;align-items:center;justify-content:center;padding:18px;color:#e6f0eb;font:13px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;background:#161a20;">Startup error: ${String(message)}</div>`;
 }
 
+function isIgnorableEmojiPickerDatabaseError(reason) {
+  const name = typeof reason?.name === "string" ? reason.name : "";
+  const message =
+    typeof reason === "string"
+      ? reason
+      : typeof reason?.message === "string"
+        ? reason.message
+        : "";
+  const stack = typeof reason?.stack === "string" ? reason.stack : "";
+  const combined = `${name} ${message} ${stack}`.toLowerCase();
+
+  return (
+    combined.includes("emoji-picker-element") &&
+    (combined.includes("transaction") ||
+      combined.includes("indexeddb") ||
+      combined.includes("invalidstateerror") ||
+      combined.includes("notsupportederror") ||
+      combined.includes("transactioninactiveerror"))
+  );
+}
+
 window.addEventListener("error", (event) => {
   renderBootError(event?.error?.message || event?.message || "Unknown error");
 });
 
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event?.reason;
+  if (isIgnorableEmojiPickerDatabaseError(reason)) {
+    event.preventDefault();
+    console.warn("Ignoring non-fatal emoji picker database error:", reason);
+    return;
+  }
+
   const message =
     typeof reason === "string"
       ? reason
@@ -763,13 +790,14 @@ async function cropPngToDataUrl(file) {
   return new Promise((resolve) => {
     const backdrop = document.createElement("div");
     backdrop.className = "avatar-crop-backdrop";
-    backdrop.innerHTML = '<div class="avatar-crop-dialog" role="dialog" aria-modal="true" aria-label="Crop avatar"><div class="avatar-crop-header"><span>Crop avatar</span><button type="button" class="icon-button avatar-crop-close" data-avatar-crop-close aria-label="Close crop editor" title="Close (Esc)">×</button></div><p class="avatar-crop-hint">Drag to reposition. Use zoom to frame your avatar.</p><canvas class="avatar-crop-canvas" width="250" height="200" aria-label="Avatar crop canvas"></canvas><div class="avatar-crop-controls"><label class="avatar-crop-zoom-label" for="avatar-crop-zoom">Zoom</label><input id="avatar-crop-zoom" class="avatar-crop-zoom" type="range" min="100" max="500" step="1" value="100"></div><div class="avatar-crop-actions"><button type="button" class="quiet" data-avatar-crop-reset>Reset</button><button type="button" class="quiet" data-avatar-crop-cancel>Cancel</button><button type="button" class="primary" data-avatar-crop-apply>Apply</button></div></div>';
+    backdrop.innerHTML =
+      '<div class="avatar-crop-dialog" role="dialog" aria-modal="true" aria-label="Crop avatar"><div class="avatar-crop-header"><span>Crop avatar</span><button type="button" class="icon-button avatar-crop-close" data-avatar-crop-close aria-label="Close crop editor" title="Close (Esc)">×</button></div><p class="avatar-crop-hint">Drag to reposition. Use zoom to frame your avatar.</p><canvas class="avatar-crop-canvas" width="250" height="200" aria-label="Avatar crop canvas"></canvas><div class="avatar-crop-controls"><label class="avatar-crop-zoom-label" for="avatar-crop-zoom">Zoom</label><input id="avatar-crop-zoom" class="avatar-crop-zoom" type="range" min="100" max="500" step="1" value="100"></div><div class="avatar-crop-actions"><button type="button" class="quiet" data-avatar-crop-reset>Reset</button><button type="button" class="quiet" data-avatar-crop-cancel>Cancel</button><button type="button" class="primary" data-avatar-crop-apply>Apply</button></div></div>';
 
     const dialog = backdrop.querySelector(".avatar-crop-dialog");
     const canvas = backdrop.querySelector(".avatar-crop-canvas");
     const slider = backdrop.querySelector(".avatar-crop-zoom");
     const closeButtons = backdrop.querySelectorAll(
-      '[data-avatar-crop-cancel], [data-avatar-crop-close]',
+      "[data-avatar-crop-cancel], [data-avatar-crop-close]",
     );
     const resetButton = backdrop.querySelector("[data-avatar-crop-reset]");
     const applyButton = backdrop.querySelector("[data-avatar-crop-apply]");
