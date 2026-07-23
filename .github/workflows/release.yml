@@ -9,33 +9,53 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-15-intel
+          - id: macos-intel
+            runner: macos-15-intel
+            os_label: macos
+            arch_label: x86_64
             bundles: dmg
             target: x86_64-apple-darwin
             args: --target x86_64-apple-darwin
-          - platform: macos-15
+          - id: macos-apple-silicon
+            runner: macos-15
+            os_label: macos
+            arch_label: aarch64
             bundles: dmg
             target: aarch64-apple-darwin
             args: --target aarch64-apple-darwin
-          - platform: ubuntu-22.04
+          - id: linux-modern
+            runner: ubuntu-22.04
+            os_label: linux-ubuntu22
+            arch_label: x86_64
+            linux_variant: modern
             bundles: deb,rpm
             args: ""
-          - platform: windows-latest
+          - id: linux-debian11-compatible
+            runner: ubuntu-20.04
+            os_label: linux-debian11-compatible
+            arch_label: x86_64
+            linux_variant: legacy
+            bundles: deb,rpm
+            args: ""
+          - id: windows
+            runner: windows-latest
+            os_label: windows
+            arch_label: x86_64
             bundles: msi
             args: ""
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+      - name: Install Linux dependencies (modern)
+        if: matrix.linux_variant == 'modern'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -48,6 +68,20 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Install Linux dependencies (Debian 11 compatible)
+        if: matrix.linux_variant == 'legacy'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libfuse2 \
+            libxdo-dev \
+            libssl-dev \
+            librsvg2-dev \
+            patchelf
+          sudo apt-get install -y libayatana-appindicator3-dev || sudo apt-get install -y libappindicator3-dev
+
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
@@ -58,7 +92,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install macOS Rust target
-        if: startsWith(matrix.platform, 'macos-')
+        if: startsWith(matrix.runner, 'macos-')
         run: rustup target add ${{ matrix.target }}
 
       - name: Install frontend dependencies
@@ -70,15 +104,67 @@ jobs:
       - name: Prepare Bare worker sidecar
         run: node scripts/prepare-bare-sidecar.mjs
 
-      - name: Build and publish Tauri release
-        uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri bundles
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
-          GITHUB_TOKEN: ${{ secrets.TAURI_RELEASE_TOKEN }}
+        run: npm run tauri build -- --bundles ${{ matrix.bundles }} ${{ matrix.args }}
+
+      - name: Collect and rename artifacts with OS/arch labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist
+
+          IFS=',' read -r -a bundle_types <<< "${{ matrix.bundles }}"
+          for bundle in "${bundle_types[@]}"; do
+            case "$bundle" in
+              dmg) ext="dmg" ;;
+              msi) ext="msi" ;;
+              deb) ext="deb" ;;
+              rpm) ext="rpm" ;;
+              *) echo "Skipping unsupported bundle type: $bundle"; continue ;;
+            esac
+
+            mapfile -t matches < <(find src-tauri/target -type f -name "*.${ext}" -path "*/bundle/*" | sort)
+            if [[ ${#matches[@]} -eq 0 ]]; then
+              echo "No artifacts found for extension .${ext}" >&2
+              exit 1
+            fi
+
+            last_index=$((${#matches[@]} - 1))
+            src="${matches[$last_index]}"
+            dest="dist/togather_${VERSION}_${{ matrix.os_label }}_${{ matrix.arch_label }}.${ext}"
+            cp "$src" "$dest"
+            echo "Prepared artifact: $dest"
+          done
+
+      - name: Upload matrix artifacts
+        uses: actions/upload-artifact@v4
         with:
-          args: --bundles ${{ matrix.bundles }} ${{ matrix.args }}
-          tagName: ${{ github.ref_name }}
-          releaseName: "togather ${{ github.ref_name }}"
-          releaseBody: "Automated release for ${{ github.ref_name }}."
-          releaseDraft: true
+          name: ${{ matrix.id }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish-release:
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: togather ${{ github.ref_name }}
+          body: Automated release for ${{ github.ref_name }}.
+          draft: true
           prerelease: false
+          files: |
+            release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.TAURI_RELEASE_TOKEN }}

@@ -1789,6 +1789,27 @@ function restoreStatusPickerGroup(pickerWidget) {
   requestAnimationFrame(applySavedGroup);
 }
 
+function focusStatusPickerSearch(pickerWidget) {
+  if (!state.statusEmojiPickerOpen) return;
+
+  const focusSearchInput = () => {
+    const searchInput = pickerWidget?.shadowRoot?.querySelector("input.search");
+    if (!(searchInput instanceof HTMLInputElement)) return false;
+    searchInput.focus({ preventScroll: true });
+    searchInput.select();
+    return true;
+  };
+
+  if (focusSearchInput()) return;
+
+  requestAnimationFrame(() => {
+    if (focusSearchInput()) return;
+    setTimeout(() => {
+      focusSearchInput();
+    }, 50);
+  });
+}
+
 function bindStatusMenu() {
   const emojiInput = app.querySelector("#status-emoji-input");
   const clearButton = app.querySelector('[data-action="clear-status"]');
@@ -1849,6 +1870,7 @@ function bindStatusMenu() {
 
       if (state.statusEmojiPickerOpen) {
         restoreStatusPickerGroup(pickerWidget);
+        focusStatusPickerSearch(pickerWidget);
       }
     });
   }
@@ -1868,6 +1890,7 @@ function bindStatusMenu() {
   });
 
   restoreStatusPickerGroup(pickerWidget);
+  focusStatusPickerSearch(pickerWidget);
 
   for (const button of closePickerButtons) {
     button.addEventListener("click", () => {
@@ -2993,15 +3016,13 @@ enableEscapeKeyHandler();
 state.zoomLevel = readSavedZoomLevel();
 applyZoomLevel(state.zoomLevel);
 enableZoomKeyHandler();
-bridge
-  .start()
-  .catch((error) => {
-    const help = workerLaunchHelpMessage(error);
-    state.workerLaunchError = help;
-    showError(help);
+bridge.start().catch((error) => {
+  const help = workerLaunchHelpMessage(error);
+  state.workerLaunchError = help;
+  showError(help);
 
-    if (app.querySelector(".onboarding")) {
-      renderOnboarding(state.joiningRoom ? "join" : "choose");
-      showError(help);
-    }
-  });
+  if (app.querySelector(".onboarding")) {
+    renderOnboarding(state.joiningRoom ? "join" : "choose");
+    showError(help);
+  }
+});

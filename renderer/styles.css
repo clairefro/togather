@@ -886,8 +886,9 @@ body.joined-transparent .main-widget .chat-button {
   inset: 35px 0 0;
   z-index: 210;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding: 8px 10px 10px;
   pointer-events: none;
 }
 .status-picker-layer[hidden] {
@@ -905,6 +906,9 @@ body.joined-transparent .main-widget .chat-button {
   position: relative;
   z-index: 1;
   width: min(322px, calc(100% - 22px));
+  max-height: calc(100% - 2px);
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--control-outline);
   border-radius: 11px;
   overflow: hidden;
@@ -933,7 +937,8 @@ body.joined-transparent .main-widget .chat-button {
 }
 .status-emoji-picker-widget {
   width: 100%;
-  height: 310px;
+  height: min(310px, 56vh);
+  min-height: 186px;
   border: 0;
   --background: #161b22;
   --border-color: var(--control-outline);
@@ -953,6 +958,32 @@ body.joined-transparent .main-widget .chat-button {
   --rgb-input: 30, 34, 40;
   --rgb-input-border: 230, 236, 242;
   --shadow: none;
+}
+@media (max-height: 520px) {
+  .status-picker-layer {
+    padding: 4px 6px 6px;
+  }
+
+  .status-picker-header {
+    padding: 6px 6px 4px;
+  }
+
+  .status-emoji-picker-widget {
+    height: min(260px, 50vh);
+    min-height: 168px;
+    --emoji-size: 1.1rem;
+    --num-columns: 7;
+  }
+}
+
+@media (max-width: 280px) {
+  .status-picker-panel {
+    width: calc(100% - 8px);
+  }
+
+  .status-emoji-picker-widget {
+    --num-columns: 6;
+  }
 }
 .peer-caption {
   display: flex;
