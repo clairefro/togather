@@ -179,6 +179,7 @@ const state = {
   systemIdlePollInFlight: false,
   systemIdleSupported: true,
   systemIdleMs: 0,
+  workerLaunchError: "",
   joinWaitTimer: null,
   startingPromise: null,
   appVersion: "",
@@ -345,6 +346,7 @@ const bridge = {
 
         state.child = await command.spawn();
         await readyPromise;
+        state.workerLaunchError = "";
         return;
       } catch (error) {
         if (state.child) {
@@ -404,6 +406,49 @@ function showError(message) {
 function clearError() {
   const error = document.querySelector("[data-error]");
   if (error) error.hidden = true;
+}
+
+function isWindowsPlatform() {
+  return navigator.userAgent.includes("Windows");
+}
+
+function workerLaunchHelpMessage(error) {
+  const readable = normalizeError(error);
+  const lowered = readable.toLowerCase();
+  const likelyBlockedByWindows =
+    isWindowsPlatform() &&
+    (lowered.includes("access is denied") ||
+      lowered.includes("operation did not complete successfully") ||
+      lowered.includes("0x") ||
+      lowered.includes("os error 5") ||
+      lowered.includes("permission"));
+
+  if (likelyBlockedByWindows) {
+    return "Windows blocked the bundled worker on first run. Allow it in the security prompt (or Protection History), then click Retry worker below.";
+  }
+
+  return `Could not launch Bare: ${readable}`;
+}
+
+function workerRecoveryMarkup() {
+  if (!state.workerLaunchError) return "";
+
+  return '<p class="muted" data-worker-recovery-note>Need networking worker access to create/join rooms.</p><button class="quiet" type="button" data-action="retry-worker-start">Retry worker</button>';
+}
+
+async function retryWorkerStart() {
+  clearError();
+  try {
+    await bridge.start();
+    state.workerLaunchError = "";
+    if (app.querySelector(".onboarding")) {
+      renderOnboarding(state.joiningRoom ? "join" : "choose");
+    }
+  } catch (error) {
+    const help = workerLaunchHelpMessage(error);
+    state.workerLaunchError = help;
+    showError(help);
+  }
 }
 function escapeHtml(text) {
   const el = document.createElement("span");
@@ -1131,12 +1176,12 @@ function renderOnboarding(mode = "choose") {
   const cancelCreateButton = state.creatingRoom
     ? '<button class="quiet" data-action="cancel-create">Back</button>'
     : "";
-  const chooseContent = `${inlineNameEditor}<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button>${enterCodeButton}${cancelCreateButton}${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}`;
+  const chooseContent = `${inlineNameEditor}<button class="primary" data-action="create" ${state.creatingRoom ? "disabled" : ""}>${creatingLabel}</button>${enterCodeButton}${cancelCreateButton}${state.creatingRoom ? '<p class="booting" aria-live="polite"><span></span> Booting room...</p>' : ""}${workerRecoveryMarkup()}`;
   const previousRoomCode = readLastRoomCode();
   const usePreviousRoomButton = previousRoomCode
     ? '<button type="button" class="use-prev-code-inline" data-action="use-prev-room-id" aria-label="Use previous room code" title="Use previous room code">↺</button>'
     : "";
-  const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code">${usePreviousRoomButton}<button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code">×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>`;
+  const joinContent = `<label class="field-label" for="invite-code">Room code</label><div class="code-input-wrap"><input id="invite-code" class="code-input" autocomplete="off" spellcheck="false" maxlength="80" placeholder="Paste room code">${usePreviousRoomButton}<button type="button" class="clear-code" data-action="clear-code" aria-label="Clear room code">×</button></div><button class="primary" data-action="join" ${state.joiningRoom ? "disabled" : ""}>${joiningLabel}</button><button class="quiet" data-action="back">Back</button>${workerRecoveryMarkup()}`;
   const menuNameValue =
     state.menuOpen && typeof state.displayNameDraft === "string"
       ? state.displayNameDraft
@@ -1170,6 +1215,11 @@ function renderOnboarding(mode = "choose") {
   app
     .querySelector('[data-action="cancel-create"]')
     ?.addEventListener("click", cancelCreatePairing);
+  app
+    .querySelector('[data-action="retry-worker-start"]')
+    ?.addEventListener("click", () => {
+      void retryWorkerStart();
+    });
   app
     .querySelector('[data-action="back"]')
     ?.addEventListener("click", () => renderOnboarding());
@@ -2945,6 +2995,13 @@ applyZoomLevel(state.zoomLevel);
 enableZoomKeyHandler();
 bridge
   .start()
-  .catch((error) =>
-    showError(`Could not launch Bare: ${normalizeError(error)}`),
-  );
+  .catch((error) => {
+    const help = workerLaunchHelpMessage(error);
+    state.workerLaunchError = help;
+    showError(help);
+
+    if (app.querySelector(".onboarding")) {
+      renderOnboarding(state.joiningRoom ? "join" : "choose");
+      showError(help);
+    }
+  });
