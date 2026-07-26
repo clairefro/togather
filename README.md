@@ -118,11 +118,76 @@ This will:
 - When click-through is enabled, press **Escape** to make the widget interactive
   again.
 
-## TODO
+## App sequence
 
-- [ ] display name validation (alphanumeric - \_)
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Renderer UI
+    participant Bridge as Tauri Bridge
+    participant Worker as bare-worker
+    participant DHT as Hyperswarm / DHT
+    participant Peer as Remote Peer Worker
 
-- [ ] custom avatar base64
+    Note over UI,Worker: App startup
+    UI->>Bridge: start worker sidecar
+    Bridge->>Worker: spawn bare-worker + workers/main.js
+    Worker-->>Bridge: { type: "ready", publicKey }
+    Bridge-->>UI: worker ready
+
+    alt Create pairing
+        UI->>Bridge: send { type: "create-pairing" }
+        Bridge->>Worker: stdin JSON command
+        Worker->>Worker: create room code
+        Worker->>Worker: topic = hash(roomCode)
+        Worker->>DHT: swarm.join(topic, client=true, server=true)
+        DHT-->>Worker: discovery flushed
+        Worker-->>Bridge: { type: "topic-joined" }
+        Worker-->>Bridge: { type: "invite", code }
+        Bridge-->>UI: show invite code
+    else Join pairing
+        UI->>Bridge: send { type: "join-pairing", code }
+        Bridge->>Worker: stdin JSON command
+        Worker-->>Bridge: { type: "joined" }
+        Worker->>Worker: topic = hash(roomCode)
+        Worker->>DHT: swarm.join(topic, client=true, server=true)
+        DHT-->>Worker: discovery flushed
+        Worker-->>Bridge: { type: "topic-joined" }
+    end
+
+    Note over Worker,Peer: Discovery / rendezvous
+    DHT-->>Worker: peer announced for topic
+    DHT-->>Peer: peer announced for topic
+    Worker->>Peer: attempt encrypted P2P connection
+    Peer-->>Worker: accept connection
+    Worker->>Worker: attachPeer(socket, publicKey)
+    Worker-->>Bridge: { type: "peer-status", connected: true, peer }
+    Bridge-->>UI: render connected peer
+
+    Note over Worker,Peer: Initial state sync
+    Worker->>Peer: { type: "presence", state }
+    Worker->>Peer: { type: "profile", displayName, avatar, statusEmoji, statusText }
+    Peer->>Worker: { type: "presence", state }
+    Peer->>Worker: { type: "profile", ... }
+    Worker-->>Bridge: { type: "presence", peer, state }
+    Worker-->>Bridge: { type: "profile", peer, ... }
+    Bridge-->>UI: update widget state
+
+    loop While connected
+        UI->>Bridge: send presence / typing / chat / profile updates
+        Bridge->>Worker: stdin JSON command
+        Worker->>Peer: newline-delimited JSON messages
+        Peer->>Worker: peer messages
+        Worker-->>Bridge: peer events
+        Bridge-->>UI: rerender relevant UI
+    end
+
+    alt Disconnect
+        Peer--xWorker: socket closes
+        Worker-->>Bridge: { type: "peer-status", connected: false, peer }
+        Bridge-->>UI: show disconnected state
+    end
+```
 
 ## Attributions
 
