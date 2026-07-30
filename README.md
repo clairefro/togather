@@ -4,14 +4,16 @@
 small P2P telepresence app. Tauri app with a Bare sidecar worker using Hyperswarm for P2P
 
 
-<img width="300"  alt="image" src="https://github.com/user-attachments/assets/a7f9233b-8f0c-42ac-b16e-a1cbdc839ca6" />
+<img width="300"  alt="HOgVkYYbgAA5jdd" src="https://github.com/user-attachments/assets/7e7970df-72c3-4cb7-a918-213d194dc3f0" />
+<img width="500" alt="HOgWeUkbUAATX_d" src="https://github.com/user-attachments/assets/9281f6de-5515-4c8d-9e97-20291d825aa1" />
+<img width="500" alt="HOgW8Sea4AARWz7" src="https://github.com/user-attachments/assets/bc673a87-aa9e-474a-aa2b-f724e47cf0ff" />
+<img width="500"  alt="HOgW7kFakAA9sYN" src="https://github.com/user-attachments/assets/c29fd693-cd11-48fd-bd6b-6c240f2e2f8b" />
 
-<img width="600"  alt="image" src="https://github.com/user-attachments/assets/742081d8-ba08-4b28-8f52-aed03b7e3ef0" />
-<img width="600"  alt="image" src="https://github.com/user-attachments/assets/03e174cd-4d5b-4d4a-add4-828a4a48839e" />
+
+
 <img width="300" alt="puku 2" src="https://github.com/user-attachments/assets/0265feb7-01c8-46a6-a650-d106f06f11aa" />
 <img width="324" height="298" alt="image" src="https://github.com/user-attachments/assets/2a316f32-2dc8-4e87-809e-ce000e1fe79a" />
 <img width="312" height="319" alt="image" src="https://github.com/user-attachments/assets/fdf99103-6216-4a3f-a451-75e8dda2fb74" />
-<img width="600"  alt="image" src="https://github.com/user-attachments/assets/2b4d1aa8-5664-488f-b608-0a675a973809" />
 
 
 
