@@ -1,3 +1,9 @@
+import {
+  centerAvatarCropOffset,
+  getAvatarCropBaseScale,
+  normalizeAvatarCropOffset,
+} from "./avatar-crop.js";
+
 // Keep the window visible during startup; we switch back to transparent after first render.
 document.body.style.background = "#161a20";
 
@@ -717,23 +723,6 @@ function clampNumber(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function centerAvatarCropOffset(image, scale) {
-  return {
-    x: (MAX_AVATAR_WIDTH - image.width * scale) / 2,
-    y: (MAX_AVATAR_HEIGHT - image.height * scale) / 2,
-  };
-}
-
-function normalizeAvatarCropOffset(offset, image, scale) {
-  const minX = MAX_AVATAR_WIDTH - image.width * scale;
-  const minY = MAX_AVATAR_HEIGHT - image.height * scale;
-
-  return {
-    x: clampNumber(offset.x, minX, 0),
-    y: clampNumber(offset.y, minY, 0),
-  };
-}
-
 function drawAvatarCropCanvas(canvas, image, offset, scale) {
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Avatar crop preview failed.");
@@ -773,13 +762,15 @@ async function cropPngToDataUrl(file) {
   if (!isPngAvatarFile(file)) throw new Error("Avatar must be a PNG image.");
 
   const image = await loadImageFromFile(file);
-  const minScale = Math.max(
-    MAX_AVATAR_WIDTH / image.width,
-    MAX_AVATAR_HEIGHT / image.height,
+  const minScale = getAvatarCropBaseScale(
+    image.width,
+    image.height,
+    MAX_AVATAR_WIDTH,
+    MAX_AVATAR_HEIGHT,
   );
   const maxScale = minScale * AVATAR_CROP_MAX_ZOOM;
   let scale = minScale;
-  let offset = centerAvatarCropOffset(image, scale);
+  let offset = centerAvatarCropOffset(image, scale, MAX_AVATAR_WIDTH, MAX_AVATAR_HEIGHT);
   let dragging = false;
   let pointerId = null;
   let lastPointerPosition = { x: 0, y: 0 };
@@ -812,7 +803,13 @@ async function cropPngToDataUrl(file) {
     }
 
     const render = () => {
-      offset = normalizeAvatarCropOffset(offset, image, scale);
+      offset = normalizeAvatarCropOffset(
+        offset,
+        image,
+        scale,
+        MAX_AVATAR_WIDTH,
+        MAX_AVATAR_HEIGHT,
+      );
       drawAvatarCropCanvas(canvas, image, offset, scale);
     };
 
@@ -895,7 +892,12 @@ async function cropPngToDataUrl(file) {
 
     resetButton?.addEventListener("click", () => {
       scale = minScale;
-      offset = centerAvatarCropOffset(image, scale);
+      offset = centerAvatarCropOffset(
+        image,
+        scale,
+        MAX_AVATAR_WIDTH,
+        MAX_AVATAR_HEIGHT,
+      );
       slider.value = "100";
       render();
     });
