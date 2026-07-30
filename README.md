@@ -1,5 +1,4 @@
 
-<img width="600" height="338" alt="togather-demo" src="https://github.com/user-attachments/assets/fbc1fb3a-a1c4-4ef2-8c65-8033623cb1bd" />
 # togather
 
 small P2P telepresence app. Tauri app with a Bare sidecar worker using Hyperswarm for P2P
