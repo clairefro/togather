@@ -221,6 +221,8 @@ const state = {
 };
 let soundAlertAudio = null;
 const activeSoundPlayers = new Set();
+let peerStripResizeObserver = null;
+let peerStripWindowResizeHandler = null;
 
 function ioPayloadToString(payload) {
   if (typeof payload === "string") return payload;
@@ -1211,8 +1213,8 @@ function bindResizeHandle() {
   if (!resizeGrip) return;
 
   let resizeSession = null;
-  const minWidth = 200;
-  const minHeight = 200;
+  const minWidth = 150;
+  const minHeight = 150;
 
   resizeGrip.addEventListener("pointerdown", async (event) => {
     if (event.button !== 0) return;
@@ -1268,6 +1270,40 @@ function bindResizeHandle() {
 
   resizeGrip.addEventListener("pointerup", endResize);
   resizeGrip.addEventListener("pointercancel", endResize);
+}
+
+function clearPeerStripVerticalAlignmentBinding() {
+  peerStripResizeObserver?.disconnect();
+  peerStripResizeObserver = null;
+
+  if (typeof peerStripWindowResizeHandler === "function") {
+    window.removeEventListener("resize", peerStripWindowResizeHandler);
+  }
+  peerStripWindowResizeHandler = null;
+}
+
+function bindPeerStripVerticalAlignment() {
+  clearPeerStripVerticalAlignmentBinding();
+
+  const peerStrip = app.querySelector(".peer-strip");
+  if (!(peerStrip instanceof HTMLElement)) return;
+
+  const applyAlignment = () => {
+    const overflowY = peerStrip.scrollHeight - peerStrip.clientHeight > 1;
+    peerStrip.classList.toggle("is-overflowing", overflowY);
+  };
+
+  requestAnimationFrame(applyAlignment);
+
+  peerStripWindowResizeHandler = () => {
+    requestAnimationFrame(applyAlignment);
+  };
+  window.addEventListener("resize", peerStripWindowResizeHandler);
+
+  if (typeof ResizeObserver === "function") {
+    peerStripResizeObserver = new ResizeObserver(applyAlignment);
+    peerStripResizeObserver.observe(peerStrip);
+  }
 }
 
 function moreMenuIconSvg() {
@@ -1375,6 +1411,7 @@ function bindSoundMenuControls() {
 }
 
 function renderOnboarding(mode = "choose") {
+  clearPeerStripVerticalAlignmentBinding();
   state.inviteCode = "";
   if (mode === "choose") {
     state.joiningRoom = false;
@@ -1546,6 +1583,7 @@ function renderOnboarding(mode = "choose") {
 }
 
 function renderInvite() {
+  clearPeerStripVerticalAlignmentBinding();
   state.creatingRoom = false;
   document.body.classList.remove("joined-transparent");
   const inviteMenuTitle = controlButtonTitle("Menu", CONTROL_HOTKEYS.menu);
@@ -2403,6 +2441,7 @@ function noticeText(message) {
 }
 
 function renderWidget() {
+  clearPeerStripVerticalAlignmentBinding();
   const currentChatInput = app.querySelector(".chat-form input");
   if (currentChatInput) state.chatDraft = currentChatInput.value;
 
@@ -2547,6 +2586,7 @@ function renderWidget() {
 
   bindDragHandle();
   bindResizeHandle();
+  bindPeerStripVerticalAlignment();
 }
 
 async function leaveRoom() {
