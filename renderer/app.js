@@ -772,7 +772,12 @@ async function cropPngToDataUrl(file) {
   );
   const maxScale = minScale * AVATAR_CROP_MAX_ZOOM;
   let scale = minScale;
-  let offset = centerAvatarCropOffset(image, scale, MAX_AVATAR_WIDTH, MAX_AVATAR_HEIGHT);
+  let offset = centerAvatarCropOffset(
+    image,
+    scale,
+    MAX_AVATAR_WIDTH,
+    MAX_AVATAR_HEIGHT,
+  );
   let dragging = false;
   let pointerId = null;
   let lastPointerPosition = { x: 0, y: 0 };

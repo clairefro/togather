@@ -17,7 +17,13 @@ test("keeps the baseline at one-to-one for images that already fit the crop heig
 test("keeps the full-image zoom level centered when the image is smaller than the crop box", () => {
   const image = { width: 200, height: 100 };
   const centeredOffset = centerAvatarCropOffset(image, 0.5, 250, 200);
-  const normalizedOffset = normalizeAvatarCropOffset(centeredOffset, image, 0.5, 250, 200);
+  const normalizedOffset = normalizeAvatarCropOffset(
+    centeredOffset,
+    image,
+    0.5,
+    250,
+    200,
+  );
 
   assert.equal(normalizedOffset.x, 75);
   assert.equal(normalizedOffset.y, 75);

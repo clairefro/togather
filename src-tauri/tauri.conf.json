@@ -32,16 +32,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": [
-      "icons/icon.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
+    "icon": ["icons/icon.png", "icons/icon.icns", "icons/icon.ico"],
     "resources": {
       "../workers": "workers"
     },
-    "externalBin": [
-      "binaries/bare-worker"
-    ]
+    "externalBin": ["binaries/bare-worker"]
   }
 }
