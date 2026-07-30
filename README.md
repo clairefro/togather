@@ -8,6 +8,7 @@ small P2P telepresence app. Tauri app with a Bare sidecar worker using Hyperswar
 
 <img width="600"  alt="image" src="https://github.com/user-attachments/assets/742081d8-ba08-4b28-8f52-aed03b7e3ef0" />
 <img width="600"  alt="image" src="https://github.com/user-attachments/assets/03e174cd-4d5b-4d4a-add4-828a4a48839e" />
+<img width="915" height="1120" alt="puku 2" src="https://github.com/user-attachments/assets/0265feb7-01c8-46a6-a650-d106f06f11aa" />
 <img width="324" height="298" alt="image" src="https://github.com/user-attachments/assets/2a316f32-2dc8-4e87-809e-ce000e1fe79a" />
 <img width="312" height="319" alt="image" src="https://github.com/user-attachments/assets/fdf99103-6216-4a3f-a451-75e8dda2fb74" />
 <img width="600"  alt="image" src="https://github.com/user-attachments/assets/2b4d1aa8-5664-488f-b608-0a675a973809" />
