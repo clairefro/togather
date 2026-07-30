@@ -3,7 +3,7 @@
 small P2P telepresence app. Tauri app with a Bare sidecar worker using Hyperswarm for P2P
 
 
-<img width="724" height="1130" alt="image" src="https://github.com/user-attachments/assets/a7f9233b-8f0c-42ac-b16e-a1cbdc839ca6" />
+<img width="300"  alt="image" src="https://github.com/user-attachments/assets/a7f9233b-8f0c-42ac-b16e-a1cbdc839ca6" />
 
 <img width="854" height="766" alt="image" src="https://github.com/user-attachments/assets/742081d8-ba08-4b28-8f52-aed03b7e3ef0" />
 <img width="700"  alt="image" src="https://github.com/user-attachments/assets/03e174cd-4d5b-4d4a-add4-828a4a48839e" />
